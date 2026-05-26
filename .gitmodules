@@ -1,0 +1,8 @@
+[submodule "fdm-printer-farm"]
+	path = fdm-printer-farm
+	url = git@github.com:jechandia/fdm-printer-farm.git
+	branch = feat/improve-prusa-link
+[submodule "fdm-monster-client-next"]
+	path = fdm-monster-client-next
+	url = https://github.com/jechandia/fdm-monster-client-next.git
+	branch = main
