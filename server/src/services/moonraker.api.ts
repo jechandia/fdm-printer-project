@@ -1,0 +1,262 @@
+import {
+  FileDto,
+  IPrinterApi,
+  MoonrakerType,
+  PartialReprintFileDto,
+  PrinterType,
+  ReprintState,
+  UploadFileInput,
+  uploadFileInputSchema,
+} from "@/services/printer-api.interface";
+import { MoonrakerClient } from "@/services/moonraker/moonraker.client";
+import type { LoginDto } from "@/services/interfaces/login.dto";
+import { NotImplementedException } from "@/exceptions/runtime.exceptions";
+import { AxiosPromise } from "axios";
+import type { PrinterObjectsQueryDto } from "@/services/moonraker/dto/objects/printer-objects-query.dto";
+import { PrintStatsObject, WebhooksObject } from "@/services/moonraker/dto/objects/printer-object.types";
+
+/**
+ * Moonraker Remote API
+ * https://moonraker.readthedocs.io/en/latest/web_api/#query-server-info
+ */
+export class MoonrakerApi implements IPrinterApi {
+  private readonly client: MoonrakerClient;
+
+  constructor(
+    moonrakerClient: MoonrakerClient,
+    private printerLogin: LoginDto,
+  ) {
+    this.client = moonrakerClient;
+  }
+
+  get type(): PrinterType {
+    return MoonrakerType;
+  }
+
+  /**
+   * When no request scope is present, this setter is to be used before calling any function.
+   * @param login
+   */
+  set login(login: LoginDto) {
+    this.printerLogin = login;
+  }
+
+  get login() {
+    return this.printerLogin;
+  }
+
+  async getVersion() {
+    const result = await this.client.getApiVersion(this.login);
+    return result.data?.server;
+  }
+
+  async validateConnection(): Promise<void> {
+    await this.getVersion();
+  }
+
+  async connect() {
+    // TODO Needs investigation
+    throw new NotImplementedException();
+  }
+
+  async disconnect() {
+    // TODO Needs investigation
+    throw new NotImplementedException();
+  }
+
+  async restartServer() {
+    await this.client.postRestartServer(this.login);
+  }
+
+  async restartHost() {
+    await this.client.postHostRestart(this.login);
+  }
+
+  async restartPrinterFirmware() {
+    await this.client.postFirmwareRestart(this.login);
+  }
+
+  async startPrint(filename: string) {
+    await this.client.postPrintStart(this.login, filename);
+  }
+
+  async pausePrint(): Promise<void> {
+    await this.client.postPrintPause(this.login);
+  }
+
+  async resumePrint(): Promise<void> {
+    await this.client.postPrintResume(this.login);
+  }
+
+  async cancelPrint(): Promise<void> {
+    await this.client.postPrintCancel(this.login);
+  }
+
+  async sendGcode(script: string): Promise<void> {
+    await this.client.postGcodeScript(this.login, script);
+  }
+
+  async quickStop(): Promise<void> {
+    await this.client.postQuickStop(this.login);
+  }
+
+  async movePrintHead(amounts: { x?: number; y?: number; z?: number; speed?: number }) {
+    // Compare to https://github.com/OctoPrint/OctoPrint/blob/fed2dd7660c1587e2c280a30ed9d84ceffa1b89d/src/octoprint/printer/standard.py#L511
+    // And https://github.com/fluidd-core/fluidd/blob/05e87ef288cc22b5180be052cf201fa68d8a0ccf/src/components/widgets/toolhead/ToolheadControlCross.vue#L261
+    const setSpeed = !!amounts.speed ? amounts.speed : 10;
+    let g1CommandAxes = "";
+    if (!Number.isNaN(amounts.x)) {
+      g1CommandAxes += ` X${amounts.x}`;
+    }
+    if (!Number.isNaN(amounts.y)) {
+      g1CommandAxes += ` Y${amounts.y}`;
+    }
+    if (!Number.isNaN(amounts.z)) {
+      g1CommandAxes += ` Z${amounts.z}`;
+    }
+
+    await this.client.postGcodeScript(
+      this.login,
+      `
+      G91
+      G1 ${g1CommandAxes} F${setSpeed}
+      G90`,
+    );
+  }
+
+  async getFile(path: string): Promise<FileDto> {
+    const metadata = await this.client.getServerFileMetadata(this.login, path);
+    const file = metadata.data.result;
+    return { size: file.size, path, date: Math.floor(file.modified * 1000), dir: false };
+  }
+
+  async getFiles(recursive = false, startDir = "") {
+    if (recursive && startDir) {
+      throw new Error("Recursive mode does not support startDir parameter for Moonraker");
+    }
+
+    const stripGcodes = (path: string) => (path.startsWith("gcodes/") ? path.substring(7) : path);
+    const buildPath = (name: string) => (startDir ? `${startDir}/${name}` : name);
+
+    if (recursive) {
+      const response = await this.client.getServerFilesList(this.login, "gcodes");
+      const dirsSet = new Set<string>();
+      const files: FileDto[] = response.data.result.map((f) => {
+        const strippedPath = stripGcodes(f.path);
+        const pathParts = strippedPath.split("/");
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          dirsSet.add(pathParts.slice(0, i + 1).join("/"));
+        }
+        return this.toFileDto(strippedPath, f.size, f.modified, false);
+      });
+
+      dirsSet.forEach((dirPath) => files.push(this.toFileDto(dirPath, 0, null, true)));
+
+      return {
+        dirs: files.filter((f) => f.dir),
+        files: files.filter((f) => !f.dir),
+      };
+    }
+
+    const moonrakerPath = startDir ? `gcodes/${startDir}` : "gcodes";
+    const response = await this.client.getServerFilesDirectoryInfo(this.login, moonrakerPath, false);
+    const { dirs: apiDirs, files: apiFiles } = response.data.result;
+
+    return {
+      dirs: apiDirs.map((d) => this.toFileDto(buildPath(d.dirname), d.size, d.modified, true)),
+      files: apiFiles.map((f) => this.toFileDto(buildPath(f.filename), f.size, f.modified, false)),
+    };
+  }
+
+  private toFileDto(path: string, size: number, modified: number | null, dir: boolean): FileDto {
+    return {
+      path,
+      size,
+      date: modified !== null ? Math.floor(modified * 1000) : null,
+      dir,
+    };
+  }
+
+  async homeAxes(axes: { x?: boolean; y?: boolean; z?: boolean }): Promise<void> {
+    // Compare to https://github.com/fluidd-core/fluidd/blob/05e87ef288cc22b5180be052cf201fa68d8a0ccf/src/components/widgets/toolhead/ToolheadControlBarsAxis.vue#L86
+    let homeCommand = `G28`;
+    if (!!axes.x) {
+      homeCommand += ` X`;
+    }
+    if (!!axes.y) {
+      homeCommand += ` Y`;
+    }
+    if (!!axes.z) {
+      homeCommand += ` Z`;
+    }
+
+    await this.client.postGcodeScript(this.login, homeCommand);
+  }
+
+  async downloadFile(path: string): AxiosPromise<NodeJS.ReadableStream> {
+    return await this.client.getServerFilesDownload(this.login, "gcodes", path);
+  }
+
+  async getFileChunk(path: string, startBytes: number, endBytes: number): AxiosPromise<string> {
+    return await this.client.getServerFilesDownloadChunk(this.login, "gcodes", path, startBytes, endBytes);
+  }
+
+  async uploadFile(input: UploadFileInput) {
+    const validated = uploadFileInputSchema.parse(input);
+    await this.client.postServerFileUpload(
+      this.login,
+      validated.stream,
+      validated.fileName,
+      validated.contentLength,
+      validated.startPrint,
+      validated.uploadToken,
+    );
+  }
+
+  async deleteFile(path: string) {
+    await this.client.deleteServerFile(this.login, "gcodes", path);
+  }
+
+  async deleteFolder(path: string) {
+    await this.client.deleteServerFilesDirectory(this.login, path, false);
+  }
+
+  async getSettings() {
+    const result = await this.client.getServerConfig(this.login);
+    return result.data?.result;
+  }
+
+  async getReprintState(): Promise<PartialReprintFileDto> {
+    const response = await this.client.getPrinterObjectsQuery<
+      PrinterObjectsQueryDto<PrintStatsObject & WebhooksObject>
+    >(this.login, {
+      print_stats: [],
+      webhooks: [],
+    });
+
+    const result = response.data.result;
+    const operational = result.status.webhooks.state === "ready";
+
+    const response2 = await this.client.getServerHistoryList(this.login, 5, 0);
+    const jobs = (response2.data?.result.jobs ?? []).sort((a, b) => (a.start_time > b.start_time ? 1 : 0));
+
+    if (jobs.length === 0 || !operational) {
+      return {
+        connectionState: operational ? "Operational" : "Error",
+        reprintState: ReprintState.NoLastPrint,
+      };
+    }
+
+    const job = jobs[0];
+    return {
+      connectionState: "Operational",
+      reprintState: ReprintState.LastPrintReady,
+      file: {
+        date: job.start_time,
+        path: job.filename,
+        size: job.metadata.size,
+        dir: false,
+      },
+    };
+  }
+}

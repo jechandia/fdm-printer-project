@@ -1,0 +1,19 @@
+{
+  "name": "fdm-monster-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo containing the FDM-Monster server and client. The server depends on the client via a workspace link, so a single `yarn install` from this root sets up both.",
+  "packageManager": "yarn@4.15.0",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build": "yarn build:client && yarn build:server",
+    "build:client": "yarn workspace @fdm-monster/client-next build",
+    "build:server": "yarn workspace @fdm-monster/server build",
+    "start": "yarn workspace @fdm-monster/server start",
+    "dev:server": "yarn workspace @fdm-monster/server dev",
+    "dev:client": "yarn workspace @fdm-monster/client-next dev"
+  }
+}

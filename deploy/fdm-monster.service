@@ -1,0 +1,29 @@
+# systemd unit for FDM-Monster.
+#
+# Install:
+#   sudo cp deploy/fdm-monster.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now fdm-monster
+#
+# Logs: journalctl -u fdm-monster -f
+#
+# Adjust User, WorkingDirectory, and the `yarn` path to match your VM.
+
+[Unit]
+Description=FDM-Monster (3D printer farm manager)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fdm
+WorkingDirectory=/opt/fdm-monster
+# Yarn lives under /usr/local/bin once corepack is enabled. Verify with `which yarn` as the target user.
+ExecStart=/usr/local/bin/yarn start
+Restart=on-failure
+RestartSec=5s
+# Pass-through for env vars defined in server/.env — node loads them via dotenv.
+EnvironmentFile=-/opt/fdm-monster/server/.env
+
+[Install]
+WantedBy=multi-user.target

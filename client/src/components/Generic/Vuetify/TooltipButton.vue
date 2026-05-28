@@ -1,0 +1,56 @@
+<template>
+  <v-tooltip :location="props.location">
+    <template #activator="{ props: tooltipProps }">
+      <v-btn
+        v-bind="tooltipProps"
+        :variant="variant"
+        class="ml-2"
+        :color="color"
+        @click="$emit('click')"
+      >
+        <slot>
+          <v-icon
+            v-if="props.icon?.length"
+            :class="'mr-2 ' + props.iconClass"
+          >
+            {{ props.icon }}
+          </v-icon>
+          <span
+            v-if="props.text?.length"
+            :class="props.textClass"
+          >
+            {{ props.text }}
+          </span>
+        </slot>
+      </v-btn>
+    </template>
+    <span>
+      {{ props.tooltip }}
+    </span>
+  </v-tooltip>
+</template>
+
+<script lang="ts" setup>
+defineEmits(['click'])
+
+export interface Props {
+  tooltip: string
+  color?: string | 'success' | 'warning' | 'danger' | 'primary' | 'secondary'
+  variant?: "elevated" | "flat" | "outlined" | "plain" | "text" | "tonal"
+  icon?: string
+  iconClass?: string
+  text?: string
+  textClass?: string
+  location?: 'start' | 'end' | 'left' | 'right' | 'top' | 'bottom'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  color: undefined,
+  icon: '',
+  iconClass: '',
+  text: '',
+  textClass: '',
+  location: 'bottom',
+  variant: 'elevated'
+})
+</script>

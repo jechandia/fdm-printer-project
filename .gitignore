@@ -1,9 +1,30 @@
-# Runtime state — mounted into the container, must never be committed.
+# Dependencies — installed by yarn from lockfile.
+node_modules/
+**/node_modules/
+
+# Build output.
+**/dist/
+**/coverage/
+**/test-results/
+
+# Runtime state — must come from a writable volume, not committed.
 data/
-deploy/data/
-deploy/.env
+server/database/
+server/media/
+server/.env
+
+# Client local config.
+client/.env
+
+# Yarn 4 internals — keep releases and cache compressed; ignore install state.
+.yarn/install-state.gz
+.yarn/cache/.cleaning
+**/.yarn/install-state.gz
+**/.yarn/cache/.cleaning
 
 # Editor / OS noise.
 .idea/
+.vscode/*
+!.vscode/settings.json
 .DS_Store
 *.log

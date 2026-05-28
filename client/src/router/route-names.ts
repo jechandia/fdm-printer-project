@@ -1,0 +1,15 @@
+export const RouteNames = {
+  Home: 'Home',
+  Dashboard: 'Dashboard',
+  Login: 'Login',
+  Registration: 'Registration',
+  PrintersView: 'PrintersView',
+  Settings: 'Settings',
+  CameraGridView: 'CameraGridView',
+  PrintJobs: 'Print Jobs',
+  Files: 'Files',
+  About: 'About',
+  PermissionDenied: 'PermissionDenied',
+  NotFound: 'NotFound',
+  FirstTimeSetup: 'FirstTimeSetup',
+}

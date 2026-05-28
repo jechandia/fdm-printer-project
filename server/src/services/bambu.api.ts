@@ -1,0 +1,334 @@
+import {
+  BambuType,
+  FileDto,
+  IPrinterApi,
+  PartialReprintFileDto,
+  PrinterType,
+  ReprintState,
+  UploadFileInput,
+  uploadFileInputSchema,
+} from "@/services/printer-api.interface";
+import { LoggerService } from "@/handlers/logger";
+import type { LoginDto } from "@/services/interfaces/login.dto";
+import type { ILoggerFactory } from "@/handlers/logger-factory";
+import { BambuClient } from "@/services/bambu/bambu.client";
+import { BambuMqttAdapter } from "@/services/bambu/bambu-mqtt.adapter";
+import { PrinterSocketStore } from "@/state/printer-socket.store";
+import { AxiosPromise, AxiosResponse } from "axios";
+import type { ServerConfigDto } from "./moonraker/dto/server/server-config.dto";
+import type { SettingsDto } from "./octoprint/dto/settings/settings.dto";
+import { statSync } from "node:fs";
+
+const defaultLog = { adapter: "bambu-lab" };
+
+/**
+ * Bambu Lab printer API implementation
+ * Implements the IPrinterApi interface for fdm-monster integration
+ *
+ * Note: MQTT adapter is managed by PrinterSocketStore
+ *
+ * Credentials mapping:
+ * - printerURL: Host IP address
+ * - password: Access code (8-character authentication code)
+ * - username: Serial number
+ */
+export class BambuApi implements IPrinterApi {
+  logger: LoggerService;
+  client: BambuClient;
+  printerLogin: LoginDto;
+  private readonly printerSocketStore: PrinterSocketStore;
+  private printerId?: number;
+
+  constructor(
+    bambuClient: BambuClient,
+    printerLogin: LoginDto,
+    printerSocketStore: PrinterSocketStore,
+    loggerFactory: ILoggerFactory,
+  ) {
+    this.logger = loggerFactory(BambuApi.name);
+    this.client = bambuClient;
+    this.printerLogin = printerLogin;
+    this.printerSocketStore = printerSocketStore;
+    this.logger.debug("Constructed Bambu API client", this.logMeta());
+  }
+
+  /**
+   * Set the printer ID for accessing the MQTT adapter
+   */
+  setPrinterId(printerId: number): void {
+    this.printerId = printerId;
+  }
+
+  /**
+   * Get the MQTT adapter from the printer socket store
+   */
+  private getMqttAdapter(): BambuMqttAdapter {
+    if (!this.printerId) {
+      throw new Error("Printer ID not set. Cannot access MQTT adapter.");
+    }
+
+    const adapter = this.printerSocketStore.getPrinterSocket(this.printerId);
+    if (!adapter) {
+      throw new Error(`MQTT adapter not found for printer ${this.printerId}`);
+    }
+
+    if (!(adapter instanceof BambuMqttAdapter)) {
+      throw new Error(`Adapter for printer ${this.printerId} is not a BambuMqttAdapter`);
+    }
+
+    return adapter;
+  }
+
+  /**
+   * Ensure FTP is connected, auto-connect if needed
+   */
+  private async ensureFtpConnected(): Promise<void> {
+    if (!this.client.isConnected) {
+      this.logger.debug("FTP not connected, connecting automatically");
+      await this.client.connect(this.printerLogin);
+    }
+  }
+
+  get type(): PrinterType {
+    return BambuType;
+  }
+
+  set login(login: LoginDto) {
+    this.printerLogin = login;
+  }
+
+  async getVersion(): Promise<string> {
+    const response = await this.client.getApiVersion(this.printerLogin);
+    return response.version;
+  }
+
+  async validateConnection(): Promise<void> {
+    this.logger.debug("Validating Bambu connection", this.logMeta());
+
+    // Test FTP connectivity first
+    try {
+      await this.ensureFtpConnected();
+      const files = await this.client.ftp.listFiles("/");
+      this.logger.debug(`FTP connection successful - found ${files.length} directories`, this.logMeta());
+    } catch (ftpError) {
+      this.logger.debug(`FTP validation failed: ${ftpError}`, this.logMeta());
+      throw new Error(`Bambu FTP connection failed: ${ftpError}`);
+    }
+  }
+
+  async connect(): Promise<void> {
+    await this.client.connect(this.printerLogin);
+  }
+
+  async disconnect(): Promise<void> {
+    await this.client.disconnect();
+  }
+
+  restartServer(): Promise<void> {
+    this.logger.warn("restartServer not supported by Bambu Lab printers");
+    throw new Error("Method not supported");
+  }
+
+  restartHost(): Promise<void> {
+    this.logger.warn("restartHost not supported by Bambu Lab printers");
+    throw new Error("Method not supported");
+  }
+
+  restartPrinterFirmware(): Promise<void> {
+    this.logger.warn("restartPrinterFirmware not supported by Bambu Lab printers");
+    throw new Error("Method not supported");
+  }
+
+  async startPrint(path: string): Promise<void> {
+    this.logger.log(`Starting print: ${path}`, this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.startPrint(path);
+  }
+
+  async pausePrint(): Promise<void> {
+    this.logger.log("Pausing print", this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.pausePrint();
+  }
+
+  async resumePrint(): Promise<void> {
+    this.logger.log("Resuming print", this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.resumePrint();
+  }
+
+  async cancelPrint(): Promise<void> {
+    this.logger.log("Canceling print", this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.stopPrint();
+  }
+
+  async quickStop(): Promise<void> {
+    this.logger.log("Quick stop (same as cancel for Bambu)", this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.stopPrint();
+  }
+
+  async sendGcode(script: string): Promise<void> {
+    this.logger.log(`Sending GCode: ${script}`, this.logMeta());
+    const mqttAdapter = this.getMqttAdapter();
+    await mqttAdapter.sendGcode(script);
+  }
+
+  movePrintHead(amounts: { x?: number; y?: number; z?: number; speed?: number }): Promise<void> {
+    this.logger.warn("movePrintHead not implemented for Bambu Lab printers");
+    throw new Error("Method not implemented");
+  }
+
+  homeAxes(axes: { x?: boolean; y?: boolean; z?: boolean }): Promise<void> {
+    this.logger.warn("homeAxes not implemented for Bambu Lab printers");
+    throw new Error("Method not implemented");
+  }
+
+  async getFile(path: string): Promise<FileDto> {
+    this.logger.debug(`Getting file info: ${path}`, this.logMeta());
+    await this.ensureFtpConnected();
+    const files = await this.client.ftp.listFiles("/");
+
+    const file = files.find((f) => f.name === path || f.name.endsWith(path));
+    if (!file) {
+      throw new Error(`File not found: ${path}`);
+    }
+
+    return {
+      path: file.name,
+      size: file.size,
+      date: file.modifiedAt ? new Date(file.modifiedAt).getTime() : null,
+      dir: file.isDirectory,
+    };
+  }
+
+  async getFiles(recursive = false, startDir = "/") {
+    if (recursive) {
+      throw new Error("Recursive listing not supported for Bambu Lab printers");
+    }
+
+    this.logger.debug(`Listing files from ${startDir}`, this.logMeta());
+    await this.ensureFtpConnected();
+
+    const items = await this.client.ftp.listFiles(startDir);
+
+    const mapped = items.map((item) => {
+      const fullPath = startDir === "/" ? `/${item.name}` : `${startDir}/${item.name}`;
+
+      return {
+        path: fullPath,
+        size: item.size,
+        date: item.modifiedAt ? new Date(item.modifiedAt).getTime() : null,
+        dir: item.isDirectory,
+      };
+    });
+
+    return {
+      dirs: mapped.filter((i) => i.dir),
+      files: mapped.filter((i) => !i.dir),
+    };
+  }
+
+  async downloadFile(path: string): AxiosPromise<NodeJS.ReadableStream> {
+    this.logger.log(`Downloading file via FTP: ${path}`, this.logMeta());
+
+    await this.ensureFtpConnected();
+
+    const { stream, tempPath } = await this.client.ftp.downloadFileAsStream(path);
+
+    const stats = statSync(tempPath);
+    const filename = path.split("/").pop() || "download";
+
+    return {
+      data: stream,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-length": String(stats.size),
+        "content-disposition": `attachment; filename="${filename}"`,
+      },
+      config: {
+        headers: {} as any,
+      },
+    };
+  }
+
+  getFileChunk(path: string, startBytes: number, endBytes: number): AxiosPromise<string> {
+    this.logger.warn("getFileChunk not implemented for Bambu Lab printers");
+    throw new Error("Method not implemented");
+  }
+
+  async uploadFile(input: UploadFileInput): Promise<void> {
+    const validated = uploadFileInputSchema.parse(input);
+
+    this.logger.log(`Uploading file: ${validated.fileName} (${validated.contentLength} bytes)`, this.logMeta());
+
+    try {
+      await this.ensureFtpConnected();
+      await this.client.ftp.uploadFile(validated.stream, validated.fileName, validated.uploadToken);
+
+      if (validated.startPrint) {
+        this.logger.log(`Starting print after upload: ${validated.fileName}`, this.logMeta());
+        const mqttAdapter = this.getMqttAdapter();
+        await mqttAdapter.startPrint(validated.fileName);
+      }
+    } catch (error) {
+      this.logger.error(`Upload failed: ${(error as Error).message}`, this.logMeta());
+      throw error;
+    }
+  }
+
+  async deleteFile(path: string): Promise<void> {
+    this.logger.log(`Deleting file: ${path}`, this.logMeta());
+    await this.ensureFtpConnected();
+    await this.client.ftp.deleteFile(path);
+  }
+
+  deleteFolder(path: string): Promise<void> {
+    this.logger.warn("deleteFolder not implemented for Bambu Lab printers");
+    throw new Error("Method not implemented");
+  }
+
+  getSettings(): Promise<ServerConfigDto | SettingsDto> {
+    this.logger.warn("getSettings not implemented for Bambu Lab printers");
+    throw new Error("Method not implemented");
+  }
+
+  async getReprintState(): Promise<PartialReprintFileDto> {
+    const mqttAdapter = this.getMqttAdapter();
+    const state = mqttAdapter.getLastState();
+
+    if (!state) {
+      return {
+        reprintState: ReprintState.PrinterNotAvailable,
+        connectionState: null,
+      };
+    }
+
+    const lastFile = state.gcode_file;
+
+    if (!lastFile) {
+      return {
+        reprintState: ReprintState.NoLastPrint,
+        connectionState: null,
+      };
+    }
+
+    return {
+      file: {
+        path: lastFile,
+        size: -1,
+        date: null,
+        dir: false,
+      },
+      reprintState: ReprintState.LastPrintReady,
+      connectionState: null,
+    };
+  }
+
+  private logMeta() {
+    return defaultLog;
+  }
+}

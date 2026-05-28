@@ -4,42 +4,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-The workspace root is a git repo (`github.com/jechandia/fdm-printer-project`) that pulls in the backend and frontend as **git submodules** — each is its own independently versioned repo:
+The repo is a **Yarn 4 workspaces monorepo** (`github.com/jechandia/fdm-printer-project`). Both the backend and frontend live in-tree:
 
-- `fdm-printer-farm/` — backend submodule, npm package `@fdm-monster/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms.
-- `fdm-monster-client-next/` — frontend submodule, npm package `@fdm-monster/client-next`. Vue 3 + Vuetify SPA.
+- `server/` — backend, npm package `@fdm-monster/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms. Built with **Vite+** (the `vp` global CLI).
+- `client/` — frontend, npm package `@fdm-monster/client-next`. Vue 3 + Vuetify SPA built with Vite.
 
-Clone with `git clone --recurse-submodules`, or run `git submodule update --init --recursive` after a plain clone. Bumping a submodule = enter it, pull/commit there, then commit the new SHA at the workspace root (`Bump fdm-printer-farm: ...`).
+The workspace is intentionally flat: just `server` and `client`. The upstream OSS scaffolding (contributor docs, GH workflows, screenshot suites, mock-printer test consoles) has been stripped — this is a deployment-focused fork, not a community fork.
 
-The server depends on the client as a published npm package (`@fdm-monster/client-next` in its `dependencies`) and serves the built client bundle as static files. During local frontend work you run the client dev server separately and point it at a running backend.
+The server depends on the client via `workspace:*`, so its `node_modules/@fdm-monster/client-next` is a symlink to `client/`. Building the client first produces `client/dist/`, which the server then serves as static files at runtime — no npm publish step needed for development.
 
-The two projects use **different toolchains** — do not assume commands from one work in the other.
+The two projects use **different toolchains** — do not assume commands from one work in the other. Both share a single root `node_modules/` via Yarn workspaces, but `server/` is driven by Vite+ (`vp`) while `client/` uses plain Yarn + Vite scripts.
 
-## Docker deployment
+### Historical note
 
-The workspace root also ships a Dockerfile + Compose setup so the whole stack can be built into one image and run on a VM with no Node toolchain:
+Until May 2026 the workspace pulled `server/` and `client/` in as git submodules pointing at separate repos (`fdm-printer-farm` and `fdm-monster-client-next`). Those upstream repos still exist on GitHub for historical reference but are no longer the source of truth — all new work happens here.
 
-- `Dockerfile` — multi-stage build: builds the client (Yarn 4 + Vite), then the server (Vite+/`vp`), then swaps the locally-built client bundle into `node_modules/@fdm-monster/client-next/dist` so the runtime image carries the workspace's modifications rather than the published `@fdm-monster/client-next` npm release. Final image is `ghcr.io/jechandia/fdm-monster:<version>`.
-- `docker-compose.yml` (root) — local build + run for the dev machine. `docker compose up --build` produces and starts the image.
-- `Makefile` — `make publish` cross-builds `linux/amd64` with `docker buildx` and pushes to GHCR with `:<version>` (from `git describe`) and `:latest`. `make login` for the one-time PAT.
-- `deploy/` — what the VM uses. `deploy/docker-compose.yml` only **pulls** from GHCR (no build context), with `.env.example` for `IMAGE_TAG` / `SERVER_PORT` / `JWT_SECRET`. See `deploy/README.md`.
+## Working in the monorepo
 
-VM deploy flow: `git clone` (no `--recurse-submodules` needed), `cd deploy`, fill in `.env`, `docker compose pull && up -d`. Persistent state lives in `deploy/data/{media,database}`.
+From the workspace root:
 
-## Backend (`fdm-printer-farm/`)
+- `yarn install` — installs everything (server + client) in a single hoisted `node_modules/`. The server's `@fdm-monster/client-next` dep is a `workspace:*` link, so `node_modules/@fdm-monster/client-next` resolves to `client/`.
+- `yarn build` — builds the client first, then the server (`build:client && build:server`).
+- `yarn start` — runs the production server (which serves the built client bundle).
+- `yarn dev:server` / `yarn dev:client` — start the backend (watch mode) and the Vite dev server in two separate terminals.
+You can also drive individual workspaces directly:
 
-Uses **Vite+** (the `vp` global CLI), not plain npm/yarn/vite. See `fdm-printer-farm/.claude/CLAUDE.md` for the full Vite+ workflow and pitfalls. Key rules: do not call npm/yarn/vite/vitest/oxlint directly; use `vp` wrappers.
+- `yarn workspace @fdm-monster/server <script>`
+- `yarn workspace @fdm-monster/client-next <script>`
 
-Common commands (run inside `fdm-printer-farm/`):
+### Prerequisites
 
-- `vp install` — install deps (run after pulling, before starting)
+The server's `prepare` script runs `vp config`, so `vite-plus` must be available globally before the first `yarn install`:
+
+```sh
+corepack enable                 # picks up Yarn 4 from the .yarn/releases bin
+npm install -g vite-plus        # provides the `vp` CLI
+yarn install
+```
+
+## VM deployment
+
+The VM runs Node natively — no Docker. Steps:
+
+```sh
+# One-time setup on a fresh VM (Debian/Ubuntu):
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs build-essential python3
+sudo corepack enable
+sudo npm install -g vite-plus
+
+# Pull and build:
+git clone https://github.com/jechandia/fdm-printer-project.git fdm-monster
+cd fdm-monster
+yarn install
+yarn build
+
+# Run:
+yarn start
+# or, persistent via systemd: see deploy/fdm-monster.service template
+```
+
+Configuration lives in `server/.env` (see `server/.env.template` for the full list — `SERVER_PORT`, `JWT_SECRET`, media/database paths, etc.). Persistent state goes wherever `MEDIA_PATH` and `DATABASE_PATH` point; keep those on a backed-up volume.
+
+## Backend (`server/`)
+
+Uses **Vite+** (the `vp` global CLI), not plain npm/yarn/vite. See `server/.claude/CLAUDE.md` for the full Vite+ workflow and pitfalls. Key rules: do not call npm/yarn/vite/vitest/oxlint directly; use `vp` wrappers.
+
+Common commands (run inside `server/`, or via `yarn workspace @fdm-monster/server <script>` from root):
+
+- `vp install` — install deps for this workspace only (the root `yarn install` already covers it)
 - `yarn dev` — build in watch mode and start the server (`NODE_ENV=development START_SERVER=true vp pack --watch`)
 - `yarn build` — production library build (`vp pack`) into `dist/`
 - `yarn start` — run the built server (`node dist/index.js`)
 - `vp check` — format + lint + typecheck (also `yarn tsc` for just types)
-- `vp test run` / `yarn test` — run the test suite once; `yarn test:watch`, `yarn test:ui`, `yarn test:cov`
-- Run a single test file: `vp test run test/path/to/file.test.ts`
-
 Database migrations (TypeORM, SQLite at `database/fdm-monster.sqlite`):
 
 - `yarn typeorm:generate` — generate a migration from entity changes (`-d src/data-source.ts`)
@@ -83,19 +120,16 @@ Hardware notes (verified against the physical farm — Prusa XL on Buddy fw 2.1.
 - **Persistence**: TypeORM entities in `src/entities/`, data source in `src/data-source.ts`, migrations in `src/migrations/` (timestamp-prefixed). ORM-backed services live in `src/services/orm/`.
 - **Realtime to client**: Socket.IO via `SocketIoGateway` (`src/state/socket-io.gateway.ts`), attached to the HTTP server in `ServerHost`.
 - **Auth**: Passport with JWT + anonymous strategies (`src/middleware/passport.ts`), role-based authorization (`ROLES` in `src/constants/authorization.constants.ts`), refresh tokens.
-- **Tests** (`test/`): Vitest, node environment. Setup in `test/setup-global.ts` and `test/setup-after-env.ts`. Uses `supertest` for API tests, `nock` for HTTP mocking, and in-memory/temp SQLite. Mock printer servers live in `packages/consoles/src/mock-*.server.ts`.
 
-## Frontend (`fdm-monster-client-next/`)
+## Frontend (`client/`)
 
-Standard **Yarn 4 + Vite**. Commands (run inside `fdm-monster-client-next/`):
+Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspace @fdm-monster/client-next <script>` from root):
 
 - `yarn dev` — Vite dev server on port 3000
 - `yarn build` — `vue-tsc --noEmit && vite build` into `dist/`
 - `yarn lint` — ESLint with `--fix`
-- `yarn test` / `yarn test:unit` — Vitest (jsdom). `yarn test:coverage` for coverage; `-u` to update snapshots.
-- Run a single test: `yarn vitest --environment jsdom src/path/to/file.spec.ts`
-- `yarn openapi-ts` — regenerate the typed API client from the backend's OpenAPI spec (see below)
-- `yarn screenshots:*` — Playwright visual/screenshot suites (per-feature scripts in `package.json`)
+
+The OpenAPI-generated client (`@hey-api/openapi-ts`) is still checked into `src/backend/generated/`, but the regeneration script and the upstream Playwright/Vitest harnesses have been removed. If you need to regenerate, install `@hey-api/openapi-ts` ad-hoc and point it at a running backend (`http://localhost:4000/api-docs/swagger.json`).
 
 ### Frontend architecture
 
@@ -110,6 +144,8 @@ Standard **Yarn 4 + Vite**. Commands (run inside `fdm-monster-client-next/`):
 
 ## Local full-stack development
 
-1. In `fdm-printer-farm/`: `yarn dev` (backend on port 4000 by default).
-2. In `fdm-monster-client-next/`: `yarn dev` (Vite on port 3000). Point the client at the backend via `VITE_API_BASE` in `.env` (e.g. `http://localhost:4000/`); see `.env.example`.
-3. After backend API changes that affect contracts, regenerate the client types with `yarn openapi-ts` (backend must be running with Swagger enabled).
+Two terminals at the workspace root:
+
+1. `yarn dev:server` — backend on port 4000.
+2. `yarn dev:client` — Vite on port 3000. Point the client at the backend via `VITE_API_BASE` in `client/.env` (e.g. `http://localhost:4000/`); see `client/.env.example`.
+3. After backend API changes that affect contracts, you can regenerate the typed client SDK from the backend's Swagger JSON — see the note in the Frontend section.

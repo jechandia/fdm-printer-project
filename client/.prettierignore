@@ -1,0 +1,15 @@
+# Ignore transient folders
+.idea
+.git
+**/coverage
+**/.github
+**/docs
+**/images
+
+# Ignore unuseful folders
+**/node_modules
+**/assets
+**/dist
+
+# Ignore root files
+**/README.md

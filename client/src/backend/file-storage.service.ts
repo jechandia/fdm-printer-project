@@ -1,0 +1,145 @@
+import { BaseService } from '@/backend/base.service'
+import { downloadFileByBlob } from '@/utils/download-file.util'
+
+export interface ThumbnailInfo {
+  index: number
+  width: number
+  height: number
+  format: string
+  size: number
+}
+
+export interface FileMetadata {
+  fileStorageId: string
+  fileName: string
+  fileFormat: string
+  fileSize: number
+  fileHash: string
+  createdAt: Date
+  /** Absolute folder path (e.g. "/clientes/empresa-x"), or null when at root. */
+  folderPath: string | null
+  thumbnails: ThumbnailInfo[]
+  metadata?: {
+    gcodePrintTimeSeconds?: number
+    filamentUsedGrams?: number
+    nozzleDiameterMm?: number
+    layerHeight?: number
+    totalLayers?: number
+    [key: string]: any
+  }
+}
+
+export interface FolderInfo {
+  path: string
+  name: string
+  createdAt: string | Date
+}
+
+export interface FilesListResponse {
+  folderPath: string
+  folders: FolderInfo[]
+  files: FileMetadata[]
+  totalCount: number
+}
+
+export interface FolderTreeResponse {
+  folders: Array<{
+    path: string
+    parentPath: string | null
+    name: string
+    createdAt: string | Date
+  }>
+}
+
+export class FileStorageService extends BaseService {
+  static async listFiles(folderPath: string | null = null, recursive = false): Promise<FilesListResponse> {
+    const params = new URLSearchParams()
+    if (folderPath) params.set('folderPath', folderPath)
+    if (recursive) params.set('recursive', 'true')
+    const qs = params.toString()
+    return this.get<FilesListResponse>(`/api/v2/file-storage${qs ? `?${qs}` : ''}`)
+  }
+
+  static async getFolderTree(): Promise<FolderTreeResponse> {
+    return this.get<FolderTreeResponse>('/api/v2/file-storage/folders/tree')
+  }
+
+  static async createFolder(path: string): Promise<FolderInfo> {
+    return this.post<FolderInfo>('/api/v2/file-storage/folders', { path })
+  }
+
+  static async renameFolder(from: string, to: string): Promise<{
+    folder: FolderInfo
+    filesUpdated: number
+  }> {
+    return this.patch('/api/v2/file-storage/folders', { from, to })
+  }
+
+  static async deleteFolder(
+    path: string,
+    options: { cascade?: boolean; force?: boolean; deleteFiles?: boolean } = {}
+  ): Promise<{ deletedPaths: string[]; filesMovedToRoot: number; filesDeleted: number }> {
+    const params = new URLSearchParams({ path })
+    if (options.cascade) params.set('cascade', 'true')
+    if (options.force) params.set('force', 'true')
+    // deleteFiles → "rm -rf": also remove the file binaries inside the subtree.
+    if (options.deleteFiles) params.set('deleteFiles', 'true')
+    return this.delete(`/api/v2/file-storage/folders?${params.toString()}`)
+  }
+
+  static async moveFileToFolder(
+    fileStorageId: string,
+    folderPath: string | null
+  ): Promise<FileMetadata> {
+    return this.patch(`/api/v2/file-storage/${fileStorageId}/folder`, { folderPath })
+  }
+
+  static async getFileMetadata(fileStorageId: string): Promise<FileMetadata> {
+    const path = `/api/v2/file-storage/${fileStorageId}`
+    return this.get<FileMetadata>(path)
+  }
+
+  static async deleteFile(fileStorageId: string): Promise<void> {
+    const path = `/api/v2/file-storage/${fileStorageId}`
+    return this.delete(path)
+  }
+
+  static async analyzeFile(fileStorageId: string): Promise<{
+    message: string
+    fileStorageId: string
+    metadata: any
+    thumbnailCount: number
+  }> {
+    const path = `/api/v2/file-storage/${fileStorageId}/analyze`
+    return this.post(path, {})
+  }
+
+  static async uploadFile(file: File, folderPath: string | null = null): Promise<any> {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (folderPath) formData.append('folderPath', folderPath)
+
+    const path = '/api/v2/file-storage/upload'
+    const response = await this.postUpload(path, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data
+  }
+
+  /** Download a folder (and its subtree) as a .zip, named after the folder. */
+  static async exportFolderZip(path: string): Promise<void> {
+    const response = await this.getDownload<ArrayBuffer>(
+      `/api/v2/file-storage/folders/export?path=${encodeURIComponent(path)}`
+    )
+    const name = path.split('/').filter(Boolean).pop() || 'folder'
+    downloadFileByBlob(response.data, `${name}.zip`, 'application/zip')
+  }
+
+  static async getThumbnailBase64(fileStorageId: string, index: number = 0): Promise<string> {
+    const path = `/api/v2/file-storage/${fileStorageId}/thumbnail/${index}`
+    const response = await this.get<{ thumbnailBase64: string }>(path)
+    return response.thumbnailBase64
+  }
+}
