@@ -5,7 +5,6 @@
     "type": "git",
     "url": "git+https://github.com/jechandia/prusahero.git"
   },
-  "author": "David Zwart",
   "license": "AGPL-3.0-or-later",
   "publishConfig": {
     "access": "public"

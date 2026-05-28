@@ -12,7 +12,6 @@ import { aliases, md } from 'vuetify/iconsets/md'
 import { mdi } from "vuetify/iconsets/mdi";
 import { createVuetify } from 'vuetify'
 import { VStepperVertical, VStepperVerticalItem } from "vuetify/labs/components";
-import discordIcon from "@/assets/Discord-Symbol-Blurple.svg"
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export const vuetify = createVuetify({
@@ -49,7 +48,6 @@ export const vuetify = createVuetify({
     defaultSet: 'md',
     aliases: {
       ...aliases,
-      discord: discordIcon,
     },
     sets: {
       md,

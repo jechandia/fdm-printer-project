@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useOverlayStore } from "@/store/overlay.store";
-import DiscordInviteButton from '@/components/Generic/Actions/DiscordInviteButton.vue'
 import GithubIssuesButton from '@/components/Generic/Actions/GithubIssuesButton.vue'
 
 const appLoaderStore = useOverlayStore();
@@ -101,21 +100,6 @@ onUnmounted(() => {
           Helpful links:
         </p>
         <div class="d-flex ga-3 flex-wrap justify-center mb-6">
-          <v-btn
-            color="surface-variant"
-            variant="outlined"
-            href="https://github.com/jechandia/prusahero"
-            target="_blank"
-          >
-            <v-icon class="mr-2">menu_book</v-icon>
-            Documentation
-          </v-btn>
-
-          <DiscordInviteButton
-            label="Discord Support"
-            variant="elevated"
-          />
-
           <GithubIssuesButton
             label="GitHub"
             variant="outlined"

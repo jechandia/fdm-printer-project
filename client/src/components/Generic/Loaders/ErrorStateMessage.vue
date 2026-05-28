@@ -89,25 +89,6 @@ function copyError() {
             Copy Error
           </v-btn>
 
-          <v-btn
-            color="surface-variant"
-            variant="outlined"
-            href="https://github.com/jechandia/prusahero"
-            target="_blank"
-          >
-            <v-icon class="mr-2">menu_book</v-icon>
-            Documentation
-          </v-btn>
-
-          <v-btn
-            color="purple"
-            variant="outlined"
-            href="https://discord.gg/mwA8uP8CMc"
-            target="_blank"
-          >
-            <v-icon class="mr-2">chat</v-icon>
-            Get Support
-          </v-btn>
         </div>
       </div>
     </v-card>

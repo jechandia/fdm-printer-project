@@ -12,7 +12,6 @@
     "vue"
   ],
   "license": "AGPL-3.0-or-later",
-  "author": "David Zwart",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jechandia/prusahero.git"

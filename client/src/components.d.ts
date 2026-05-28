@@ -31,7 +31,6 @@ declare module 'vue' {
     DayBars: typeof import('./components/Generic/DayBars.vue')['default']
     DebugSocketSettings: typeof import('./components/Settings/DebugSocketSettings.vue')['default']
     DiagnosticsSettings: typeof import('./components/Settings/DiagnosticsSettings.vue')['default']
-    DiscordInviteButton: typeof import('./components/Generic/Actions/DiscordInviteButton.vue')['default']
     EmergencyCommands: typeof import('./components/Settings/EmergencyCommands.vue')['default']
     ErrorStateMessage: typeof import('./components/Generic/Loaders/ErrorStateMessage.vue')['default']
     FileDetailsDialog: typeof import('./components/Files/FileDetailsDialog.vue')['default']
