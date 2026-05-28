@@ -8,7 +8,6 @@ export const settingPage = {
   serverProtection: "serverProtection",
   softwareUpgrade: "softwareUpgrade",
   diagnostics: "diagnostics",
-  experimental: "experimental",
   slicer: "slicer",
   apiKeys: "apiKeys",
   debugSocket: "debugSocket",
@@ -68,12 +67,6 @@ export const settingsPage = {
     title: "Diagnostics",
     icon: "bug_report",
     path: "/settings/diagnostics",
-    divider: false,
-  },
-  [settingPage.experimental]: {
-    title: "Experimental",
-    icon: "settings_applications",
-    path: "/settings/experimental",
     divider: false,
   },
   [settingPage.slicer]: {

@@ -34,7 +34,6 @@ declare module 'vue' {
     DiscordInviteButton: typeof import('./components/Generic/Actions/DiscordInviteButton.vue')['default']
     EmergencyCommands: typeof import('./components/Settings/EmergencyCommands.vue')['default']
     ErrorStateMessage: typeof import('./components/Generic/Loaders/ErrorStateMessage.vue')['default']
-    ExperimentalSettings: typeof import('./components/Settings/ExperimentalSettings.vue')['default']
     FileDetailsDialog: typeof import('./components/Files/FileDetailsDialog.vue')['default']
     FileExplorerAction: typeof import('./components/Generic/Actions/FileExplorerAction.vue')['default']
     FileExplorerSideNav: typeof import('./components/Generic/FileExplorerSideNav.vue')['default']

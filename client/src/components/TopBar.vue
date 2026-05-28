@@ -164,7 +164,6 @@ const pageTitle = computed(() => {
       '/settings/appearance': 'Settings · Appearance',
       '/settings/software-upgrade': 'Settings · Software Upgrade',
       '/settings/diagnostics': 'Settings · Diagnostics',
-      '/settings/experimental': 'Settings · Experimental',
       '/settings/debug-socket': 'Settings · SocketIO Debug',
       '/settings/about': 'Settings · About'
     }

@@ -30,10 +30,7 @@ export class ServerApi {
   static readonly updateFrontendSettingsRoute = `${ServerApi.settingsRoute}/frontend`
   static readonly updateTimeoutSettingRoute = `${ServerApi.settingsRoute}/timeout`
   static readonly serverSentryDiagnosticsSettingRoute = `${ServerApi.settingsRoute}/sentry-diagnostics`
-  static readonly updateExperimentalMoonrakerSupportRoute = `${ServerApi.settingsRoute}/experimental-moonraker-support`
   static readonly updateExperimentalThumbnailSupportRoute = `${ServerApi.settingsRoute}/experimental-thumbnail-support`
-  static readonly updateExperimentalPrusaLinkSupportRoute = `${ServerApi.settingsRoute}/experimental-prusa-link-support`
-  static readonly updateExperimentalBambuSupportRoute = `${ServerApi.settingsRoute}/experimental-bambu-support`
   static readonly slicerApiKeyRoute = `${ServerApi.settingsRoute}/slicer-api-key`
   static readonly regenerateSlicerApiKeyRoute = `${ServerApi.slicerApiKeyRoute}/regenerate`
   static readonly apiKeysRoute = `${ServerApi.base}/api-keys`

@@ -1,4 +1,4 @@
-import { OctoPrintType, MoonrakerType, PrusaLinkType, BambuType } from './printer-types.constants'
+import { PrusaLinkType } from './printer-types.constants'
 
 export interface PrinterCapabilities {
   hasSerialConnection: boolean      // Can connect/disconnect via serial/USB
@@ -8,29 +8,11 @@ export interface PrinterCapabilities {
   hasPrinterControl: boolean         // Can control printer remotely (pause, resume, etc.)
   /**
    * Whether the printer adapter exposes manual head movement (jog / home).
-   * PrusaLink and Bambu reject these because the underlying firmware/API
-   * has no equivalent endpoint, so the printer-controls dialog should
-   * hide the XY/Z pad instead of letting the user trigger a 500.
+   * PrusaLink rejects these because the HTTP API has no equivalent endpoint,
+   * so the printer-controls dialog hides the XY/Z pad instead of letting
+   * the user trigger a 500.
    */
   hasManualMovement: boolean
-}
-
-const OCTOPRINT_CAPABILITIES: PrinterCapabilities = {
-  hasSerialConnection: true,
-  canSyncName: true,
-  hasWebInterface: true,
-  hasEmergencyStop: true,
-  hasPrinterControl: true,
-  hasManualMovement: true
-}
-
-const MOONRAKER_CAPABILITIES: PrinterCapabilities = {
-  hasSerialConnection: false,
-  canSyncName: false,
-  hasWebInterface: true,
-  hasEmergencyStop: true,
-  hasPrinterControl: true,
-  hasManualMovement: true
 }
 
 const PRUSALINK_CAPABILITIES: PrinterCapabilities = {
@@ -42,20 +24,8 @@ const PRUSALINK_CAPABILITIES: PrinterCapabilities = {
   hasManualMovement: false         // No jog/home over PrusaLink's HTTP API
 }
 
-const BAMBU_CAPABILITIES: PrinterCapabilities = {
-  hasSerialConnection: false,
-  canSyncName: false,
-  hasWebInterface: false,
-  hasEmergencyStop: false,
-  hasPrinterControl: true,
-  hasManualMovement: false         // Bambu Lab printers don't accept remote jog
-}
-
 const CAPABILITIES_MAP: Record<number, PrinterCapabilities> = {
-  [OctoPrintType]: OCTOPRINT_CAPABILITIES,
-  [MoonrakerType]: MOONRAKER_CAPABILITIES,
-  [PrusaLinkType]: PRUSALINK_CAPABILITIES,
-  [BambuType]: BAMBU_CAPABILITIES
+  [PrusaLinkType]: PRUSALINK_CAPABILITIES
 }
 
 export function hasSerialConnection(printerType: number): boolean {

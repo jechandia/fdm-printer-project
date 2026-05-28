@@ -38,10 +38,7 @@ export interface CredentialSettingsDto {
   refreshTokenExpiry: number
 }
 
-export interface ServerSettingsSensitiveDto {
-  experimentalMoonrakerSupport: boolean
-  experimentalPrusaLinkSupport: boolean
-}
+export interface ServerSettingsSensitiveDto {}
 
 export interface SettingsSensitiveDto {
   server: ServerSettingsSensitiveDto

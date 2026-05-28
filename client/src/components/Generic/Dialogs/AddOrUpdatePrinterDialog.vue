@@ -22,55 +22,6 @@
       <v-divider class="mb-6"/>
 
       <v-card-text>
-        <div class="d-flex align-center mb-4">
-          <h4 class="text-h6">Printer type</h4>
-          <v-btn
-            v-if="!hasAllPrinterTypes"
-            variant="text"
-            size="small"
-            color="primary"
-            class="ml-2"
-            @click="openExperimentalSettings"
-          >
-            Enable more types
-          </v-btn>
-        </div>
-        <v-select
-          v-model="formData.printerType"
-          :items="serviceTypes"
-          item-title="name"
-          item-value="type"
-          label="Select printer type*"
-          class="mb-4"
-          required
-        >
-          <template #selection="{ item }">
-            <div class="d-flex align-center">
-              <v-img
-                :src="item.raw.logo"
-                :height="item.raw.height"
-                max-width="30px"
-                width="30px"
-                class="mr-3"
-              />
-              <span>{{ item.raw.name }}</span>
-            </div>
-          </template>
-          <template #item="{ item, props }">
-            <v-list-item v-bind="props">
-              <template #prepend>
-                <v-img
-                  :src="item.raw.logo"
-                  :height="item.raw.height"
-                  max-width="30px"
-                  width="30px"
-                  class="mr-3"
-                />
-              </template>
-            </v-list-item>
-          </template>
-        </v-select>
-
         <v-row>
           <v-col :cols="showChecksPanel ? 8 : 12">
             <v-row v-if="formData">
@@ -98,41 +49,24 @@
             <v-text-field
               v-model="formData.printerURL"
               class="ma-1"
-              hint="F.e. 'octopi.local' or 'https://my.printer.com'"
+              hint="F.e. 'prusalink.local' or 'https://my.printer.com'"
               label="Printer URL*"
             />
 
             <v-text-field
-              v-if="formData.printerType === OctoPrintType"
-              v-model="formData.apiKey"
-              :counter="apiKeyRules.length"
-              class="ma-1"
-              hint="User or Application Key with 32 or 43 characters (Global API key will fail)"
-              :label="
-                formData.printerType === OctoPrintType || formData.printerType === MoonrakerType
-                  ? 'API Key (required)*'
-                  : 'API Key (unsupported)'
-              "
-              persistent-hint
-              required
-            />
-
-            <v-text-field
-              v-if="formData.printerType === PrusaLinkType || formData.printerType === BambuType"
               v-model="formData.username"
               class="ma-1"
-              :hint="formData.printerType === BambuType ? 'Serial number from printer' : 'Username (often \'maker\')'"
-              :label="formData.printerType === BambuType ? 'Serial' : 'Username'"
+              hint="Username (often 'maker')"
+              label="Username"
               persistent-hint
               required
             />
 
             <v-text-field
-              v-if="formData.printerType === PrusaLinkType || formData.printerType === BambuType"
               v-model="formData.password"
               class="ma-1"
-              :hint="formData.printerType === BambuType ? 'Access code from printer settings' : 'Password (visit your printer settings)'"
-              :label="formData.printerType === BambuType ? 'AccessCode' : 'Password'"
+              hint="Password (visit your printer settings)"
+              label="Password"
               persistent-hint
               required
             />
@@ -233,7 +167,6 @@
 
 <script lang="ts" setup>
 import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
 import { generateInitials } from "@/shared/noun-adjectives.data";
 import { usePrinterStore } from "@/store/printer.store";
 import { PrintersService } from "@/backend";
@@ -245,20 +178,10 @@ import { appConstants } from "@/shared/app.constants";
 import { useSnackbar } from "@/shared/snackbar.composable";
 import { AxiosError } from "axios";
 import { useFeatureStore } from "@/store/features.store";
-import prusaLinkLogoSvg from "@/assets/prusa-link-logo.svg";
-import {
-  getPrinterTypeName,
-  isMoonrakerType, isPrusaLinkType, isBambuType,
-  MoonrakerType,
-  OctoPrintType,
-  PrusaLinkType,
-  BambuType,
-} from "@/shared/printer-types.constants";
+import { PrusaLinkType } from "@/shared/printer-types.constants";
 import PrinterChecksPanel from "@/components/Generic/Dialogs/PrinterChecksPanel.vue";
 import { useFloorStore } from "@/store/floor.store";
 import { captureException } from "@sentry/vue";
-
-const router = useRouter();
 
 const dialog = useDialog(DialogName.AddOrUpdatePrinterDialog);
 const printersStore = usePrinterStore();
@@ -277,22 +200,6 @@ const duplicatingPrinter = ref(false);
 const isDuplicating = ref(false);
 const duplicatedFromName = ref<string | null>(null);
 
-// This build only wires the PrusaLink adapter — the OctoPrint/Moonraker/Bambu
-// services in the server are dead code here, so the dropdown is hard-coded to
-// PrusaLink to avoid letting the user pick something that won't actually
-// connect. The unused PrinterType imports stay (some templates still read
-// them) but only PrusaLink is offered as an option.
-const serviceTypes = computed(() => [
-  {
-    name: getPrinterTypeName(PrusaLinkType),
-    type: PrusaLinkType,
-    logo: prusaLinkLogoSvg,
-    height: "20px",
-  },
-]);
-
-const hasAllPrinterTypes = computed(() => false);
-
 const printerId = computed(() => {
   return dialog.context()?.id;
 });
@@ -306,6 +213,7 @@ async function onDialogOpened() {
 
   if (!printerId.value) {
     formData.value = getDefaultCreatePrinter();
+    formData.value.printerType = PrusaLinkType;
     return;
   }
   const printer = printersStore.printer(printerId.value) as CreatePrinter;
@@ -353,14 +261,6 @@ const printerNameRules = computed(() => {
   return { required: true, max: appConstants.maxPrinterNameLength };
 });
 
-const apiKeyRules = computed(() => {
-  return {
-    required: true,
-    length: appConstants.apiKeyLength,
-    alpha_num: true,
-  };
-});
-
 function resetForm() {
   formData.value = getDefaultCreatePrinter();
 }
@@ -384,13 +284,7 @@ async function testPrinter() {
 const isValid = () => {
   const form = formData.value;
   if (!form) return false;
-  if (isMoonrakerType(form.printerType)) {
-    return form.printerURL?.length && form.name?.length;
-  }
-  if (isPrusaLinkType(form.printerType) || isBambuType(form.printerType)) {
-    return form.printerURL?.length && form.name?.length && form.username?.length && form.password?.length;
-  }
-  return form.printerURL?.length && form.name?.length && form.apiKey?.length;
+  return form.printerURL?.length && form.name?.length && form.username?.length && form.password?.length;
 };
 
 async function createPrinter(newPrinterData: CreatePrinter) {
@@ -434,10 +328,8 @@ async function submit() {
   }
 
   const createdPrinter = formData.value as CreatePrinter;
-
-  if (isMoonrakerType(createdPrinter.printerType) || isPrusaLinkType(createdPrinter.printerType) || isBambuType(createdPrinter.printerType)) {
-    createdPrinter.apiKey = "";
-  }
+  createdPrinter.printerType = PrusaLinkType;
+  createdPrinter.apiKey = "";
 
   try {
     if (isUpdating.value) {
@@ -495,11 +387,6 @@ function duplicatePrinter() {
   delete formData.value.id;
   isDuplicating.value = true;
   duplicatingPrinter.value = false;
-}
-
-function openExperimentalSettings() {
-  closeDialog();
-  router.push('/settings/experimental');
 }
 
 function closeDialog() {

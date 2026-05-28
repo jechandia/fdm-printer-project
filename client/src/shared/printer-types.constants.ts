@@ -1,71 +1,50 @@
-import bambuLogo from '@/assets/bambu-logo.png'
-import klipperLogo from '@/assets/klipper-logo.svg'
 import prusaLinkLogo from '@/assets/prusa-link-logo.svg'
-import octoprintLogo from '@/assets/octoprint-tentacle.svg'
 
-// Printer type constants
-export const OctoPrintType = 0
-export const MoonrakerType = 1
+// Printer type constant. The fork only supports PrusaLink; the historical
+// codes 0/1/3 (OctoPrint/Moonraker/Bambu) were stripped along with their
+// backend adapters.
 export const PrusaLinkType = 2
-export const BambuType = 3
-
-// Type check functions
-export function isOctoPrintType(printerType?: number) {
-  return printerType === OctoPrintType
-}
-
-export function isMoonrakerType(printerType?: number) {
-  return printerType === MoonrakerType
-}
 
 export function isPrusaLinkType(printerType?: number) {
   return printerType === PrusaLinkType
 }
 
-export function isBambuType(printerType?: number) {
-  return printerType === BambuType
-}
-
 export function getPrinterTypeName(printerType?: number) {
-  if (isOctoPrintType(printerType)) {
-    return 'OctoPrint'
-  } else if (isMoonrakerType(printerType)) {
-    return 'Moonraker'
-  } else if (isPrusaLinkType(printerType)) {
+  if (isPrusaLinkType(printerType)) {
     return 'PrusaLink'
-  } else if (isBambuType(printerType)) {
-    return 'Bambu'
-  } else {
-    return 'Unknown'
   }
+  return 'Unknown'
 }
 
 /**
- * Get the printer type logo based on file metadata
- * @param metadata - File metadata containing printer model information
- * @param fileFormat - File format (optional)
- * @returns Logo image URL or undefined
+ * Get the printer type logo based on file metadata.
+ * Returns the PrusaLink logo for any recognised Prusa-family hardware; other
+ * vendors are intentionally not represented in this fork.
  */
-export function getPrinterTypeLogo(metadata: { printerModel?: string; [key: string]: any } | Record<string, any>, fileFormat?: string): string | undefined {
+export function getPrinterTypeLogo(
+  metadata: { printerModel?: string; [key: string]: any } | Record<string, any>,
+  fileFormat?: string
+): string | undefined {
   const printerModel = metadata?.printerModel?.toLowerCase() || ''
 
-  if (printerModel.includes('bambu') || printerModel.includes('x1') || printerModel.includes('p1')) {
-    return bambuLogo
-  } else if (printerModel.includes('klipper') || printerModel.includes('voron') || printerModel.includes('ratrig')) {
-    return klipperLogo
-  } else if (printerModel.includes('prusa') || printerModel.includes('mk3') || printerModel.includes('mk4') || printerModel.includes('mini')) {
+  if (
+    printerModel.includes('prusa') ||
+    printerModel.includes('mk3') ||
+    printerModel.includes('mk4') ||
+    printerModel.includes('mini') ||
+    printerModel.includes('xl') ||
+    printerModel.includes('core one') ||
+    fileFormat === 'bgcode'
+  ) {
     return prusaLinkLogo
-  } else if (printerModel.includes('ender') || printerModel.includes('creality') || fileFormat === 'gcode') {
-    return octoprintLogo
   }
 
   return undefined
 }
 
-// Printer types array for dropdowns
+// Printer types array for dropdowns. Single-entry now that PrusaLink is the
+// only supported vendor — kept as an array so existing call sites continue
+// to iterate.
 export const PRINTER_TYPES = [
-  { name: getPrinterTypeName(OctoPrintType), value: OctoPrintType },
-  { name: getPrinterTypeName(MoonrakerType), value: MoonrakerType },
-  { name: getPrinterTypeName(PrusaLinkType), value: PrusaLinkType },
-  { name: getPrinterTypeName(BambuType), value: BambuType }
+  { name: getPrinterTypeName(PrusaLinkType), value: PrusaLinkType }
 ] as const

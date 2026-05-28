@@ -22,7 +22,6 @@ import SoftwareUpgradeSettings from '../components/Settings/SoftwareUpgradeSetti
 import DiagnosticsSettings from '../components/Settings/DiagnosticsSettings.vue'
 import PrintJobsView from '../components/PrintJobs/PrintJobsView.vue'
 import FilesView from '../components/Files/FilesView.vue'
-import ExperimentalSettings from '@/components/Settings/ExperimentalSettings.vue'
 import SlicerSettings from '@/components/Settings/SlicerSettings.vue'
 import ApiKeysSettings from '@/components/Settings/ApiKeysSettings.vue'
 import DebugSocketSettings from "@/components/Settings/DebugSocketSettings.vue";
@@ -141,11 +140,6 @@ const router = createRouter({
           path: 'diagnostics',
           meta: NeedsAuth,
           component: DiagnosticsSettings
-        },
-        {
-          path: 'experimental',
-          meta: NeedsAuth,
-          component: ExperimentalSettings
         },
         {
           path: 'slicer',

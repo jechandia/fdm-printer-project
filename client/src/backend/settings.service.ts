@@ -61,26 +61,12 @@ export class SettingsService extends BaseService {
     return await this.put<SettingsDto>(path, subSettings)
   }
 
-  static async updateExperimentalMoonrakerSupport(enabled: boolean) {
-    const path = ServerApi.updateExperimentalMoonrakerSupportRoute
-    return await this.put<SettingsDto>(path, { enabled })
-  }
-
-  static async updateExperimentalPrusaLinkSupport(enabled: boolean) {
-    const path = ServerApi.updateExperimentalPrusaLinkSupportRoute;
-    return await this.put<SettingsDto>(path, { enabled })
-  }
-
-  static async updateExperimentalBambuSupport(enabled: boolean) {
-    const path = ServerApi.updateExperimentalBambuSupportRoute
-    return await this.put<SettingsDto>(path, { enabled })
-  }
-
   static async updateExperimentalThumbnailSupport(enabled: boolean) {
     const path = ServerApi.updateExperimentalThumbnailSupportRoute;
     return await this.put<SettingsDto>(path, { enabled })
   }
- static async getSlicerApiKey() {
+
+  static async getSlicerApiKey() {
     const path = ServerApi.slicerApiKeyRoute
     return await this.get<{ slicerApiKey: string | null }>(path)
   }
