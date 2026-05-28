@@ -1,10 +1,6 @@
 import { getDefaultTimeout } from "@/constants/server-settings.constants";
 import axios, { AxiosInstance, AxiosProgressEvent, AxiosRequestConfig } from "axios";
-import {
-  contentTypeHeaderKey,
-  jsonContentType,
-  multiPartContentType,
-} from "@/services/octoprint/constants/octoprint-service.constants";
+import { contentTypeHeaderKey, jsonContentType, multiPartContentType } from "@/constants/http-headers.constants";
 
 export interface IHttpClientBuilder {
   build(): AxiosInstance;

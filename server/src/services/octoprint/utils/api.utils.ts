@@ -1,8 +1,4 @@
-import {
-  apiKeyHeaderKey,
-  contentTypeHeaderKey,
-  jsonContentType,
-} from "@/services/octoprint/constants/octoprint-service.constants";
+import { apiKeyHeaderKey, contentTypeHeaderKey, jsonContentType } from "@/constants/http-headers.constants";
 import { ValidationException } from "@/exceptions/runtime.exceptions";
 import type { LoginDto } from "@/services/interfaces/login.dto";
 

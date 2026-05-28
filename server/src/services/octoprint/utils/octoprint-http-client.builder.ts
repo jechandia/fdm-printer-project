@@ -1,5 +1,5 @@
 import { DefaultHttpClientBuilder } from "@/shared/default-http-client.builder";
-import { apiKeyHeaderKey } from "@/services/octoprint/constants/octoprint-service.constants";
+import { apiKeyHeaderKey } from "@/constants/http-headers.constants";
 import { AxiosInstance } from "axios";
 
 export class OctoprintHttpClientBuilder extends DefaultHttpClientBuilder {

@@ -27,7 +27,7 @@ import EventEmitter2 from "eventemitter2";
 import type { PL_FileDto } from "@/services/prusa-link/dto/file.dto";
 import { SettingsStore } from "@/state/settings.store";
 import { deriveCapabilities, type PrusaLinkCapabilities } from "@/services/prusa-link/utils/prusa-link-capabilities";
-import { apiKeyHeaderKey } from "@/services/octoprint/constants/octoprint-service.constants";
+import { apiKeyHeaderKey } from "@/constants/http-headers.constants";
 
 const defaultLog = { adapter: "prusa-link" };
 

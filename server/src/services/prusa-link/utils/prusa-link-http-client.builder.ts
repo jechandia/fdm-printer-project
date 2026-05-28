@@ -1,8 +1,5 @@
 import { DefaultHttpClientBuilder } from "@/shared/default-http-client.builder";
-import {
-  authorizationHeaderKey,
-  wwwAuthenticationHeaderKey,
-} from "@/services/octoprint/constants/octoprint-service.constants";
+import { authorizationHeaderKey, wwwAuthenticationHeaderKey } from "@/constants/http-headers.constants";
 import { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 import { generateDigestAuthHeader } from "./digest-auth.util";
 import { randomBytes } from "node:crypto";
