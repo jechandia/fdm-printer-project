@@ -14,7 +14,7 @@ export class ServerPrivateService extends BaseService {
     })
     downloadFileByBlob(
       response.data as ArrayBuffer,
-      'export-fdm-monster-' + Date.now() + '.yaml'
+      'export-prusahero-' + Date.now() + '.yaml'
     )
   }
 
@@ -32,17 +32,17 @@ export class ServerPrivateService extends BaseService {
     const client = await getHttpClient()
     const response = await client.request<any>({
       method: 'POST',
-      url: `api/v2/server/dump-fdm-monster-logs`,
+      url: `api/v2/server/dump-prusahero-logs`,
       responseType: 'arraybuffer'
     })
     downloadFileByBlob(
       response.data as ArrayBuffer,
-      'logs-fdm-monster-' + Date.now() + '.zip'
+      'logs-prusahero-' + Date.now() + '.zip'
     )
   }
 
   public static async clearLogFilesOlderThanWeek() {
-    const path = `api/v2/server/clear-outdated-fdm-monster-logs`
+    const path = `api/v2/server/clear-outdated-prusahero-logs`
     return await this.delete(path)
   }
 }

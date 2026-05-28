@@ -29,7 +29,6 @@ import { ClientBundleService } from "./services/core/client-bundle.service";
 import { BrandingService } from "./services/core/branding.service";
 import { FloorStore } from "./state/floor.store";
 import { YamlService } from "./services/core/yaml.service";
-import { MonsterPiService } from "./services/core/monsterpi.service";
 import { BatchCallService } from "./services/core/batch-call.service";
 import { OctoprintWebsocketAdapter } from "./services/octoprint/octoprint-websocket.adapter";
 import { PrinterCache } from "./state/printer.cache";
@@ -117,7 +116,6 @@ export function configureContainer() {
     [di.toadScheduler]: asClass(ToadScheduler).singleton(),
     [di.eventEmitter2]: asFunction(configureEventEmitter).singleton(),
     [di.serverReleaseService]: asClass(ServerReleaseService).singleton(),
-    [di.monsterPiService]: asClass(MonsterPiService).singleton(),
     [di.githubService]: asClass(GithubService),
     [di.octokitService]: asFunction((configService: IConfigService) => {
       const CustomOctoKit = Octokit.plugin(throttling);

@@ -38,7 +38,7 @@ import type { MoonrakerEventDto } from "@/services/moonraker/constants/moonraker
 import type { PrinterObjectsQueryDto } from "@/services/moonraker/dto/objects/printer-objects-query.dto";
 import type { ConnectionIdentifyResponseDto } from "@/services/moonraker/dto/websocket/connection-identify-response.dto";
 import type { FlagsDto } from "@/services/octoprint/dto/printer/flags.dto";
-import { MoonrakerType, type FdmCurrentMessageDto } from "@/services/printer-api.interface";
+import { MoonrakerType, type PrusaHeroCurrentMessageDto } from "@/services/printer-api.interface";
 import { Event as WsEvent } from "ws";
 import { NotifyServiceStateChangedParams } from "@/services/moonraker/dto/websocket/notify-service-state-changed.params";
 import { WebsocketRpcExtendedAdapter } from "@/shared/websocket-rpc-extended.adapter";
@@ -216,7 +216,7 @@ export class MoonrakerWebsocketAdapter extends WebsocketRpcExtendedAdapter imple
       jsonrpc: "2.0",
       method: "server.connection.identify",
       params: {
-        client_name: "FDM Monster",
+        client_name: "PrusaHero",
         version: this.serverVersion,
         type: "other",
         url: AppConstants.githubUrl,
@@ -419,7 +419,7 @@ export class MoonrakerWebsocketAdapter extends WebsocketRpcExtendedAdapter imple
       completion = (originalKlipperObjects.display_status?.progress ?? 0) * 100.0;
     }
 
-    const currentMessage: FdmCurrentMessageDto = {
+    const currentMessage: PrusaHeroCurrentMessageDto = {
       progress: {
         printTime,
         completion,

@@ -120,8 +120,8 @@ export class SlicerCompatController {
           },
         },
         done: true,
-        // Additional FDM Monster metadata
-        _fdmMonster: {
+        // Additional PrusaHero metadata
+        _prusaHero: {
           fileStorageId,
           fileHash,
           analyzed: Object.keys(metadata).length > 0,

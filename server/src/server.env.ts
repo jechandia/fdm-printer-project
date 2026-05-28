@@ -6,7 +6,7 @@ import { packageJsonPath } from "@/utils/fs.utils";
 import { collectDefaultMetrics, register } from "prom-client";
 
 export function setupEnvConfig() {
-  const logger = new Logger("FDM-Environment");
+  const logger = new Logger("PrusaHero-Environment");
   const environment = process.env[AppConstants.NODE_ENV_KEY];
   if (!environment || !AppConstants.knownEnvNames.includes(environment)) {
     const newEnvName = AppConstants.defaultProductionEnv;
@@ -28,7 +28,7 @@ export function setupEnvConfig() {
 }
 
 function ensurePackageVersionSet() {
-  const logger = new Logger("FDM-Environment");
+  const logger = new Logger("PrusaHero-Environment");
   const packageJson = JSON.parse(readFileSync(packageJsonPath(), "utf-8"));
   const packageJsonVersion = packageJson.version;
   process.env[AppConstants.VERSION_KEY] ??= packageJsonVersion;
@@ -47,7 +47,7 @@ export function fetchServerPort() {
 }
 
 function installUnhandledRejectionHandler() {
-  const logger = new Logger("FDM-Environment");
+  const logger = new Logger("PrusaHero-Environment");
   process.on("unhandledRejection", (e) => {
     // Server must not crash on unhandled rejections — log and continue.
     logger.error(`Unhandled rejection error - ${errorSummary(e)}`);
@@ -55,7 +55,7 @@ function installUnhandledRejectionHandler() {
 }
 
 export function ensurePortSet() {
-  const logger = new Logger("FDM-Environment");
+  const logger = new Logger("PrusaHero-Environment");
   fetchServerPort();
 
   if (!process.env[AppConstants.SERVER_PORT_KEY]) {

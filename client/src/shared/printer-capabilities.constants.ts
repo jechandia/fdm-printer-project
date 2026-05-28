@@ -2,7 +2,7 @@ import { OctoPrintType, MoonrakerType, PrusaLinkType, BambuType } from './printe
 
 export interface PrinterCapabilities {
   hasSerialConnection: boolean      // Can connect/disconnect via serial/USB
-  canSyncName: boolean               // Can sync name from FDM Monster to printer
+  canSyncName: boolean               // Can sync name from PrusaHero to printer
   hasWebInterface: boolean           // Has accessible web interface to redirect to
   hasEmergencyStop: boolean          // Has emergency/quick stop (more aggressive than normal stop)
   hasPrinterControl: boolean         // Can control printer remotely (pause, resume, etc.)

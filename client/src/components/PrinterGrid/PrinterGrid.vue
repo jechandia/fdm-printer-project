@@ -36,7 +36,7 @@
     </div>
 
     <img
-      alt="FDM Monster Background"
+      alt="PrusaHero Background"
       class="grid-bg-img align-content-center"
       src="/img/logo.svg"
       style="opacity: 0.08; pointer-events: none"

@@ -1900,42 +1900,42 @@ export type DeleteApiV2ServerDeleteAllPrintersResponses = {
   200: unknown
 }
 
-export type DeleteApiV2ServerClearOutdatedFdmMonsterLogsData = {
+export type DeleteApiV2ServerClearOutdatedPrusaHeroLogsData = {
   body?: never
   path?: never
   query?: never
-  url: '/api/v2/server/clear-outdated-fdm-monster-logs'
+  url: '/api/v2/server/clear-outdated-prusahero-logs'
 }
 
-export type DeleteApiV2ServerClearOutdatedFdmMonsterLogsResponses = {
+export type DeleteApiV2ServerClearOutdatedPrusaHeroLogsResponses = {
   /**
    * Successful response
    */
   200: unknown
 }
 
-export type GetApiV2ServerDumpFdmMonsterLogsData = {
+export type GetApiV2ServerDumpPrusaHeroLogsData = {
   body?: never
   path?: never
   query?: never
-  url: '/api/v2/server/dump-fdm-monster-logs'
+  url: '/api/v2/server/dump-prusahero-logs'
 }
 
-export type GetApiV2ServerDumpFdmMonsterLogsResponses = {
+export type GetApiV2ServerDumpPrusaHeroLogsResponses = {
   /**
    * Successful response
    */
   200: unknown
 }
 
-export type PostApiV2ServerDumpFdmMonsterLogsData = {
+export type PostApiV2ServerDumpPrusaHeroLogsData = {
   body?: never
   path?: never
   query?: never
-  url: '/api/v2/server/dump-fdm-monster-logs'
+  url: '/api/v2/server/dump-prusahero-logs'
 }
 
-export type PostApiV2ServerDumpFdmMonsterLogsResponses = {
+export type PostApiV2ServerDumpPrusaHeroLogsResponses = {
   /**
    * Successful response
    */

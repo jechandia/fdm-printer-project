@@ -109,7 +109,7 @@ export class ServerHost {
     const port = fetchServerPort();
 
     if (!port || Number.isNaN(Number.parseInt(port))) {
-      throw new Error("The FDM Server requires a numeric port input argument to run");
+      throw new Error("The PrusaHero Server requires a numeric port input argument to run");
     }
 
     const swaggerDisabled = process.env[AppConstants.DISABLE_SWAGGER_OPENAPI] === "true";

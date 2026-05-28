@@ -5,10 +5,10 @@ export const AppConstants = {
   DATABASE_PATH: "DATABASE_PATH",
   defaultDatabasePath: "./database",
   DATABASE_FILE: "DATABASE_FILE",
-  defaultDatabaseFile: "./fdm-monster.sqlite",
+  defaultDatabaseFile: "./prusahero.sqlite",
 
-  pm2ServiceName: "FDM",
-  logAppName: "fdm-monster",
+  pm2ServiceName: "PrusaHero",
+  logAppName: "prusahero",
 
   MEDIA_PATH: "MEDIA_PATH",
   defaultBaseMediaPath: "./media",
@@ -45,10 +45,10 @@ export const AppConstants = {
   DEFAULT_REFRESH_TOKEN_EXPIRY: 60 * 60 * 24 * 14, // 14 days (in ms)
   // String, not persisted
   OVERRIDE_JWT_ISSUER: "OVERRIDE_JWT_ISSUER",
-  DEFAULT_JWT_ISSUER: "fdm-monster-server",
+  DEFAULT_JWT_ISSUER: "prusahero-server",
   // String, not persisted
   OVERRIDE_JWT_AUDIENCE: "OVERRIDE_JWT_AUDIENCE",
-  DEFAULT_JWT_AUDIENCE: "fdm-monster-client-next",
+  DEFAULT_JWT_AUDIENCE: "prusahero-client",
 
   OVERRIDE_IS_DEMO_MODE: "OVERRIDE_IS_DEMO_MODE",
   OVERRIDE_DEMO_USERNAME: "OVERRIDE_DEMO_USERNAME",
@@ -64,13 +64,13 @@ export const AppConstants = {
   defaultProductionEnv: "production",
   knownEnvNames: ["development", "production", "test"],
   GITHUB_PAT: "GITHUB_PAT",
-  serverPackageName: "@fdm-monster/server",
-  serverRepoName: "fdm-monster",
-  clientPackageName: "@fdm-monster/client-next",
-  clientRepoName: "fdm-monster-client-next",
-  githubUrl: "https://github.com/fdm-monster/fdm-monster",
-  docsUrl: "https://docs.fdm-monster.net",
-  orgName: "fdm-monster",
+  serverPackageName: "@prusahero/server",
+  serverRepoName: "prusahero",
+  clientPackageName: "@prusahero/client-next",
+  clientRepoName: "prusahero",
+  githubUrl: "https://github.com/jechandia/prusahero",
+  docsUrl: "https://github.com/jechandia/prusahero",
+  orgName: "prusahero",
   // Wizard version changes will trigger a re-run of the wizard
   currentWizardVersion: 1,
   defaultClientMinimum: "2.3.3",
@@ -88,9 +88,6 @@ export const AppConstants = {
   defaultPrusaLinkPollIntervalMs: 5000,
   minPrusaLinkPollIntervalMs: 1000,
   maxPrusaLinkPollIntervalMs: 60_000,
-
-  // MonsterPi
-  monsterPiFilePath: "/etc/monsterpi_version",
 
   // Sentry
   sentryCustomDsnToken: "SENTRY_CUSTOM_DSN",

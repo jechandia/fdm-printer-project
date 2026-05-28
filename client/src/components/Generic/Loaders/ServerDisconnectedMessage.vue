@@ -46,7 +46,7 @@ onUnmounted(() => {
         </v-icon>
         <h1 class="text-h4 font-weight-bold mb-4">Server Disconnected</h1>
         <p class="text-body-1 text-medium-emphasis mb-0">
-          Cannot connect to FDM Monster server. Please ensure the server is running and try again.
+          Cannot connect to PrusaHero server. Please ensure the server is running and try again.
         </p>
 
         <div v-if="appLoaderStore.isRetrying" class="mt-6">
@@ -104,7 +104,7 @@ onUnmounted(() => {
           <v-btn
             color="surface-variant"
             variant="outlined"
-            href="https://docs.fdm-monster.net"
+            href="https://github.com/jechandia/prusahero"
             target="_blank"
           >
             <v-icon class="mr-2">menu_book</v-icon>

@@ -85,7 +85,7 @@ echo "── Config sanity ─────────────────�
 if [ -f server/.env ]; then
   secret=$(grep -E "^OVERRIDE_JWT_SECRET=" server/.env | cut -d= -f2-)
   case "$secret" in
-    "fdm-monster-jwt-secret-2023" | "change-me-with-openssl-rand-hex-48" | "")
+    "prusahero-jwt-secret-2023" | "change-me-with-openssl-rand-hex-48" | "")
       fail "OVERRIDE_JWT_SECRET is the template default or empty — regenerate with \`openssl rand -hex 48\`"
       ;;
     *)

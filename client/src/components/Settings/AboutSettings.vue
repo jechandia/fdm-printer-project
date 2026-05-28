@@ -1,16 +1,13 @@
 <template>
   <v-card>
-    <v-card-title>About FDM Monster</v-card-title>
+    <v-card-title>About PrusaHero</v-card-title>
     <v-card-text>
       <p>
-        FDM Monster is an open-source 3D printing farm management system created
-        by David Zwart in 2021.
+        PrusaHero is an open-source PrusaLink farm management system.
       </p>
       <p class="mt-4">
         <strong>Server version:</strong> {{ serverVersion }}<br />
-        <strong>Client version:</strong> {{ version }}<br />
-        <strong v-if="monsterPiVersion">MonsterPi version: {{ monsterPiVersion }}</strong>
-        <strong v-else>No MonsterPi distro detected.</strong>
+        <strong>Client version:</strong> {{ version }}
       </p>
       <v-btn
         class="mt-3"
@@ -25,7 +22,7 @@
     <v-card-title>Documentation & Support</v-card-title>
     <v-card-text>
       <v-btn
-        href="https://docs.fdm-monster.net"
+        href="https://github.com/jechandia/prusahero"
         target="_blank"
         variant="tonal"
         class="mb-2"
@@ -87,12 +84,10 @@ import DiscordInviteButton from '@/components/Generic/Actions/DiscordInviteButto
 import GithubIssuesButton from '@/components/Generic/Actions/GithubIssuesButton.vue'
 
 const serverVersion = ref('')
-const monsterPiVersion = ref<string | null>('')
 const version = ref(clientVersion)
 
 onMounted(async () => {
   const versionSpec = await AppService.getVersion()
   serverVersion.value = versionSpec.version
-  monsterPiVersion.value = versionSpec.monsterPi
 })
 </script>

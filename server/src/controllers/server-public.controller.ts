@@ -5,7 +5,6 @@ import { authenticate, permission } from "@/middleware/authenticate";
 import { PERMS } from "@/constants/authorization.constants";
 import { SettingsStore } from "@/state/settings.store";
 import { ServerReleaseService } from "@/services/core/server-release.service";
-import { MonsterPiService } from "@/services/core/monsterpi.service";
 import type { Request, Response } from "express";
 
 @route(AppConstants.apiRoute)
@@ -14,7 +13,6 @@ export class ServerPublicController {
     private readonly settingsStore: SettingsStore,
     private readonly serverVersion: string,
     private readonly serverReleaseService: ServerReleaseService,
-    private readonly monsterPiService: MonsterPiService,
   ) {}
 
   @GET()
@@ -67,13 +65,11 @@ export class ServerPublicController {
   @before([authenticate(), permission(PERMS.ServerInfo.Get)])
   async getVersion(req: Request, res: Response) {
     const updateState = this.serverReleaseService.getState();
-    const monsterPiVersion = this.monsterPiService.getMonsterPiVersionSafe();
 
     res.json({
       version: this.serverVersion,
       isNode: isNode(),
       os: process.env.OS,
-      monsterPi: monsterPiVersion,
       update: {
         synced: updateState.synced,
         updateAvailable: updateState.updateAvailable,

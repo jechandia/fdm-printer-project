@@ -516,7 +516,7 @@ async function confirmDeleteCamera(camera: CameraWithPrinter) {
     camera.cameraStream.name || camera.printer?.name || 'this camera'
   const ok = await confirmDialog({
     title: `Delete ${cameraName}?`,
-    message: 'The camera stream will be removed from FDM Monster.',
+    message: 'The camera stream will be removed from PrusaHero.',
     hint: 'The camera itself is not affected; only this saved stream configuration is deleted.',
     confirmText: 'Delete camera',
     severity: 'danger',

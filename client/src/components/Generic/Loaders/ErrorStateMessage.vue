@@ -92,7 +92,7 @@ function copyError() {
           <v-btn
             color="surface-variant"
             variant="outlined"
-            href="https://docs.fdm-monster.net"
+            href="https://github.com/jechandia/prusahero"
             target="_blank"
           >
             <v-icon class="mr-2">menu_book</v-icon>

@@ -1,7 +1,7 @@
 <template>
   <v-container fluid>
     <img
-      alt="FDM Monster Background"
+      alt="PrusaHero Background"
       class="grid-bg-img align-content-center"
       src="/img/logo.svg"
       style="opacity: 0.08"
@@ -49,7 +49,7 @@
                     width="80"
                     height="80"
                   />
-                  <h1 class="text-h3 ml-4">FDM Monster</h1>
+                  <h1 class="text-h3 ml-4">PrusaHero</h1>
                 </div>
                 <p class="text-subtitle-1 text-medium-emphasis">
                   Welcome! Let's set up your 3D printing farm management system. <br/>
@@ -65,7 +65,7 @@
                     <div class="text-center mb-8">
                       <h2 class="text-h5 mb-2">Start Setup</h2>
                       <p class="text-body-2 text-medium-emphasis">
-                        Configure your FDM Monster server step by step with the setup wizard.
+                        Configure your PrusaHero server step by step with the setup wizard.
                       </p>
                     </div>
 
@@ -312,7 +312,7 @@
                 </v-icon>
                 <h2 class="text-h4 mb-2">Setup Completed!</h2>
                 <p class="text-subtitle-1 text-medium-emphasis">
-                  Your FDM Monster server is now configured and ready to use.
+                  Your PrusaHero server is now configured and ready to use.
                 </p>
               </div>
 

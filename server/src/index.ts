@@ -6,7 +6,7 @@ import { LoggerService as Logger } from "@/handlers/logger";
 import { createStaticLogger } from "@/handlers/logging/static.logger";
 
 createStaticLogger({ enableFileLogs: true });
-const logger = new Logger("FDM-Environment");
+const logger = new Logger("PrusaHero-Environment");
 logger.log("✓ Parsed environment with (optional) .env file, created static logger");
 
 setupEnvConfig();

@@ -38,7 +38,7 @@ export function createLokiLoggingTransport(options: LokiLoggerOptions) {
     },
     // The labels,json, useWinstonMetaAsLabels, format settings plays well with Loki + Grafana
     labels: {
-      app: "fdm-monster-server",
+      app: "prusahero-server",
     },
     // When set to false, uses protobuf
     json: false,

@@ -19,7 +19,7 @@ import { BadRequestException } from "@/exceptions/runtime.exceptions";
 // file from the previous print is deleted right before the next one is uploaded
 // (deleting at completion time is unreliable on PrusaLink, which keeps the
 // just-finished file "selected" and answers 409 until the user dismisses it).
-export const PRINTER_TEMP_FOLDER = "fdm-monster-temp";
+export const PRINTER_TEMP_FOLDER = "prusahero-temp";
 
 export interface QueuedJob {
   id: number;

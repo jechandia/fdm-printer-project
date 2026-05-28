@@ -8,7 +8,7 @@
       icon="rocket_launch"
       class="mb-6"
     >
-      <v-alert-title class="mb-1">Welcome to FDM Monster</v-alert-title>
+      <v-alert-title class="mb-1">Welcome to PrusaHero</v-alert-title>
       <p class="mb-3 text-body-2">
         Set up your first printer to start monitoring your 3D print farm.
       </p>
@@ -549,7 +549,7 @@ const goToCameras = () => router.push('/cameras')
 const gotoJobs = () => router.push('/jobs')
 
 const viewDocumentation = () => {
-  globalThis.open('https://docs.fdm-monster.net', '_blank')
+  globalThis.open('https://github.com/jechandia/prusahero', '_blank')
 }
 
 const openYamlDialog = () => useDialog(DialogName.YamlImportExport).openDialog()

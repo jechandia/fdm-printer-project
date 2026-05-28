@@ -23,7 +23,7 @@ function generateSwaggerHTML(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FDM Monster API Documentation</title>
+  <title>PrusaHero API Documentation</title>
   <link rel="stylesheet" href="/api-docs/static/swagger-ui.css" />
   <style>
     html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }

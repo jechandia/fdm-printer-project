@@ -1,20 +1,13 @@
 {
-  "name": "@fdm-monster/server",
+  "name": "@prusahero/server",
   "version": "2.0.11",
-  "description": "FDM Monster is a bulk OctoPrint, Klipper, PrusaLink and BambuLab manager to set up, configure and monitor 3D printers. Our aim is to provide neat overview over your farm.",
+  "description": "PrusaHero is a PrusaLink farm manager to set up, configure and monitor Prusa 3D printers. Our aim is to provide neat overview over your farm.",
   "keywords": [
     "3d printing",
-    "MonsterPi",
     "RaspberryPi",
-    "Unraid",
-    "bambu",
-    "fdm",
-    "fdm-monster",
-    "klipper",
-    "moonraker",
     "node",
-    "octoprint",
     "pi",
+    "prusahero",
     "prusalink",
     "vue"
   ],
@@ -22,11 +15,10 @@
   "author": "David Zwart",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fdm-monster/fdm-monster.git"
+    "url": "git+https://github.com/jechandia/prusahero.git"
   },
   "bin": {
-    "fdm-monster-server": "dist/index.js",
-    "fdmm-server": "dist/index.js"
+    "prusahero-server": "dist/index.js"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -47,8 +39,8 @@
     "console:migrate": "tsx src/consoles/typeorm-migrate.ts"
   },
   "dependencies": {
-    "@fdm-monster/client-next": "workspace:*",
     "@octokit/plugin-throttling": "11.0.3",
+    "@prusahero/client-next": "workspace:*",
     "@sentry/node": "10.52.0",
     "adm-zip": "0.5.17",
     "awilix": "13.0.3",

@@ -43,7 +43,7 @@ export enum PrinterTypesEnum {
 
 export type PrinterType = typeof OctoprintType | typeof MoonrakerType | typeof PrusaLinkType | typeof BambuType;
 
-export interface FdmCurrentMessageDto {
+export interface PrusaHeroCurrentMessageDto {
   progress: {
     printTime: number | null;
     completion: number | null;

@@ -30,7 +30,6 @@ export const DITokens = {
   yamlService: "yamlService",
   settingsService: "settingsService",
   serverReleaseService: "serverReleaseService",
-  monsterPiService: "monsterPiService",
   githubService: "githubService",
   octokitService: "octokitService",
   clientBundleService: "clientBundleService",

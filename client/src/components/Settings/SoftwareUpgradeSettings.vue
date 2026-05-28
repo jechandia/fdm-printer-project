@@ -19,7 +19,7 @@
           <code>cd &lt;repo&gt; &amp;&amp; git pull &amp;&amp; yarn install &amp;&amp; yarn build</code>
         </div>
         <div>
-          Then restart the server (e.g. <code>systemctl restart fdm-monster</code>).
+          Then restart the server (e.g. <code>systemctl restart prusahero</code>).
         </div>
       </SettingSection>
     </v-card-text>

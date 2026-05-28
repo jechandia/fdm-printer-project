@@ -95,10 +95,7 @@ export class BootTask implements TaskService {
     // anyone reaching here with it set is either testing with copy-pasted
     // config (fine in dev, log a warning) or about to deploy a forge-your-own
     // JWTs server (bad — exit so they fix it).
-    const insecureDefaultJwtSecrets = new Set([
-      "fdm-monster-jwt-secret-2023",
-      "change-me-with-openssl-rand-hex-48",
-    ]);
+    const insecureDefaultJwtSecrets = new Set(["prusahero-jwt-secret-2023", "change-me-with-openssl-rand-hex-48"]);
     if (overrideJwtSecret && insecureDefaultJwtSecrets.has(overrideJwtSecret)) {
       const message =
         `OVERRIDE_JWT_SECRET is set to the template default (${overrideJwtSecret}). ` +

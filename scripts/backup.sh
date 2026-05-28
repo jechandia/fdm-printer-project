@@ -10,7 +10,7 @@ if [ ! -d data ]; then
 fi
 
 stamp=$(date +%Y%m%d-%H%M%S)
-out="backups/fdm-monster-${stamp}.tar.gz"
+out="backups/prusahero-${stamp}.tar.gz"
 mkdir -p backups
 
 tar -czf "$out" data

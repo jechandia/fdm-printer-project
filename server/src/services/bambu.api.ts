@@ -23,7 +23,7 @@ const defaultLog = { adapter: "bambu-lab" };
 
 /**
  * Bambu Lab printer API implementation
- * Implements the IPrinterApi interface for fdm-monster integration
+ * Implements the IPrinterApi interface for prusahero integration
  *
  * Note: MQTT adapter is managed by PrinterSocketStore
  *
