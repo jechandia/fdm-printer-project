@@ -1,7 +1,6 @@
 import { setInterval, setTimeout } from "node:timers/promises";
 import { validateInput } from "@/handlers/validators";
 import { createTestPrinterSchema } from "./validation/create-test-printer.validation";
-import { octoPrintEvent, moonrakerEvent, bambuEvent, type OctoPrintEventDto } from "@/services/_legacy-vendor-stubs";
 import { WsMessage } from "@/shared/ws-message.constants";
 import { AppConstants } from "@/server.constants";
 import { SocketIoGateway } from "@/state/socket-io.gateway";
@@ -14,6 +13,7 @@ import { captureException } from "@sentry/node";
 import { SOCKET_STATE } from "@/shared/dtos/socket-state.type";
 import type { IWebsocketAdapter } from "@/services/websocket-adapter.interface";
 import { prusaLinkEvent } from "@/services/prusa-link/constants/prusalink.constants";
+import type { PrusaLinkEventDto } from "@/services/prusa-link/constants/prusalink-event.dto";
 import { printerEvents } from "@/constants/event.constants";
 import { z } from "zod";
 
@@ -62,28 +62,13 @@ export class TestPrinterSocketStore {
     });
 
     const testEvents = [
-      octoPrintEvent(WsMessage.WS_STATE_UPDATED),
-      octoPrintEvent(WsMessage.API_STATE_UPDATED),
-      octoPrintEvent(WsMessage.WS_CLOSED),
-      octoPrintEvent(WsMessage.WS_OPENED),
-      octoPrintEvent(WsMessage.WS_ERROR),
-      moonrakerEvent(WsMessage.WS_STATE_UPDATED),
-      moonrakerEvent(WsMessage.API_STATE_UPDATED),
-      moonrakerEvent(WsMessage.WS_CLOSED),
-      moonrakerEvent(WsMessage.WS_OPENED),
-      moonrakerEvent(WsMessage.WS_ERROR),
-      bambuEvent(WsMessage.WS_STATE_UPDATED),
-      bambuEvent(WsMessage.API_STATE_UPDATED),
-      bambuEvent(WsMessage.WS_CLOSED),
-      bambuEvent(WsMessage.WS_OPENED),
-      bambuEvent(WsMessage.WS_ERROR),
       prusaLinkEvent(WsMessage.WS_STATE_UPDATED),
       prusaLinkEvent(WsMessage.API_STATE_UPDATED),
       prusaLinkEvent(WsMessage.WS_CLOSED),
       prusaLinkEvent(WsMessage.WS_OPENED),
       prusaLinkEvent(WsMessage.WS_ERROR),
     ];
-    const listener = ({ event, payload, printerId }: OctoPrintEventDto) => {
+    const listener = ({ event, payload, printerId }: PrusaLinkEventDto) => {
       if (printerId !== testPrinterId) {
         return;
       }
