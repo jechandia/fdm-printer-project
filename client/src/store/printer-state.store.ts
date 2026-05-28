@@ -32,13 +32,11 @@ export const usePrinterStateStore = defineStore('PrinterState', {
       this.printerIds.forEach((id) => {
         const printerEvents = this.printerEventsById[id]
         if (printerEvents?.current?.payload?.state?.flags?.operational) {
+          // socketStates/events and the printer list are populated by independent
+          // async paths; skip ids not (yet) in the list instead of crashing the render.
           const printer = printerStore.printer(id)
           if (printer) {
             printersById[id] = printer
-          } else {
-            throw new Error(
-              `PrinterStore contains no printer with id ${id} but events are known`
-            )
           }
         }
       })
@@ -98,10 +96,6 @@ export const usePrinterStateStore = defineStore('PrinterState', {
           const printer = printerStore.printer(id)
           if (printer) {
             onlinePrinters[id] = printer
-          } else {
-            throw new Error(
-              `PrinterStore contains no printer with id ${id} but socket state is opened`
-            )
           }
         }
       })
@@ -151,10 +145,6 @@ export const usePrinterStateStore = defineStore('PrinterState', {
           const printer = printerStore.printer(id)
           if (printer) {
             printersWithJobById[printer.id] = printerEvents?.current?.payload
-          } else {
-            throw new Error(
-              `PrinterStore contains no printer with id ${id} but events are known`
-            )
           }
         }
       })
@@ -184,10 +174,6 @@ export const usePrinterStateStore = defineStore('PrinterState', {
               printer,
               job: printerEvents?.current?.payload
             })
-          } else {
-            throw new Error(
-              `PrinterStore contains no printer with id ${id} but events are known`
-            )
           }
         }
       })
