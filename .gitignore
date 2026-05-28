@@ -1,0 +1,9 @@
+# Runtime state — mounted into the container, must never be committed.
+data/
+deploy/data/
+deploy/.env
+
+# Editor / OS noise.
+.idea/
+.DS_Store
+*.log

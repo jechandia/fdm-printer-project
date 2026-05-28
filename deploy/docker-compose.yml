@@ -1,0 +1,22 @@
+# VM deployment. Pulls the pre-built image from GHCR — no source tree, no
+# submodules, no build step. Pair with the .env file (see .env.example).
+#
+# Usage on the VM:
+#   cp .env.example .env && edit .env
+#   docker compose pull
+#   docker compose up -d
+
+services:
+  fdm-monster:
+    image: ghcr.io/jechandia/fdm-monster:${IMAGE_TAG:-latest}
+    container_name: fdm-monster
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-4000}:4000"
+    volumes:
+      - ./data/media:/app/media
+      - ./data/database:/app/database
+    environment:
+      SERVER_PORT: "4000"
+      ENABLE_CLIENT_DIST_AUTO_UPDATE: "false"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set in .env}"

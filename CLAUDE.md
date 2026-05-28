@@ -4,14 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-This directory is a workspace holding two **separate git repositories** (the workspace root itself is not a git repo). They are developed and versioned independently:
+The workspace root is a git repo (`github.com/jechandia/fdm-printer-project`) that pulls in the backend and frontend as **git submodules** — each is its own independently versioned repo:
 
-- `fdm-printer-farm/` — the backend, npm package `@fdm-monster/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms.
-- `fdm-monster-client-next/` — the frontend, npm package `@fdm-monster/client-next`. Vue 3 + Vuetify SPA.
+- `fdm-printer-farm/` — backend submodule, npm package `@fdm-monster/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms.
+- `fdm-monster-client-next/` — frontend submodule, npm package `@fdm-monster/client-next`. Vue 3 + Vuetify SPA.
+
+Clone with `git clone --recurse-submodules`, or run `git submodule update --init --recursive` after a plain clone. Bumping a submodule = enter it, pull/commit there, then commit the new SHA at the workspace root (`Bump fdm-printer-farm: ...`).
 
 The server depends on the client as a published npm package (`@fdm-monster/client-next` in its `dependencies`) and serves the built client bundle as static files. During local frontend work you run the client dev server separately and point it at a running backend.
 
 The two projects use **different toolchains** — do not assume commands from one work in the other.
+
+## Docker deployment
+
+The workspace root also ships a Dockerfile + Compose setup so the whole stack can be built into one image and run on a VM with no Node toolchain:
+
+- `Dockerfile` — multi-stage build: builds the client (Yarn 4 + Vite), then the server (Vite+/`vp`), then swaps the locally-built client bundle into `node_modules/@fdm-monster/client-next/dist` so the runtime image carries the workspace's modifications rather than the published `@fdm-monster/client-next` npm release. Final image is `ghcr.io/jechandia/fdm-monster:<version>`.
+- `docker-compose.yml` (root) — local build + run for the dev machine. `docker compose up --build` produces and starts the image.
+- `Makefile` — `make publish` cross-builds `linux/amd64` with `docker buildx` and pushes to GHCR with `:<version>` (from `git describe`) and `:latest`. `make login` for the one-time PAT.
+- `deploy/` — what the VM uses. `deploy/docker-compose.yml` only **pulls** from GHCR (no build context), with `.env.example` for `IMAGE_TAG` / `SERVER_PORT` / `JWT_SECRET`. See `deploy/README.md`.
+
+VM deploy flow: `git clone` (no `--recurse-submodules` needed), `cd deploy`, fill in `.env`, `docker compose pull && up -d`. Persistent state lives in `deploy/data/{media,database}`.
 
 ## Backend (`fdm-printer-farm/`)
 
