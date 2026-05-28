@@ -29,8 +29,6 @@ export interface PrintJobProgressEvent {
   jobId: number;
   printerId: number;
   progress: number;
-  currentLayer?: number;
-  totalLayers?: number;
 }
 
 export interface PrintJobCompletedEvent {
@@ -59,12 +57,7 @@ export interface PrintJobCancelledEvent {
 export interface IPrintJobService {
   handleFileAnalyzed(jobId: number, metadata: PrintJobMetadata, thumbnails?: any[]): Promise<PrintJob>;
   handlePrintStarted(printerId: number, fileName: string, jobId?: number, printerName?: string): Promise<PrintJob>;
-  handlePrintProgress(
-    printerId: number,
-    progress: number,
-    currentLayer?: number,
-    totalLayers?: number,
-  ): Promise<PrintJob | null>;
+  handlePrintProgress(printerId: number, progress: number): Promise<PrintJob | null>;
   handlePrintCompleted(printerId: number, fileName?: string): Promise<PrintJob | null>;
   handlePrintFailed(printerId: number, reason: string, fileName?: string): Promise<PrintJob | null>;
   handlePrintCancelled(printerId: number, reason?: string): Promise<PrintJob | null>;
@@ -76,13 +69,7 @@ export interface IPrintJobService {
 
   // Helper methods for printer middleware
   markStarted(printerId: number, fileName: string, printerName?: string): Promise<PrintJob>;
-  markProgress(
-    printerId: number,
-    fileName: string,
-    progress: number,
-    currentLayer?: number,
-    totalLayers?: number,
-  ): Promise<PrintJob | null>;
+  markProgress(printerId: number, fileName: string, progress: number): Promise<PrintJob | null>;
   markFinished(printerId: number, fileName: string): Promise<PrintJob | null>;
   markFailed(printerId: number, fileName: string, reason: string): Promise<PrintJob | null>;
   updateJobMetadata(printerId: number, fileName: string, partialMetadata: Partial<PrintJobMetadata>): Promise<void>;
@@ -145,6 +132,38 @@ export class PrintJobService implements IPrintJobService {
     return job;
   }
 
+  // PrusaLink reports the same file under different forms depending on the
+  // call: a friendly display name ("WIRBEL_TESTPART.BGC"), a short DOS-style
+  // path, or a full storage path. Compare on the basename, case-insensitively,
+  // so an upload-created job and the polled "PRINTING" state are recognised as
+  // the same print instead of spawning a duplicate / false UNKNOWN.
+  private sameFile(a?: string | null, b?: string | null): boolean {
+    if (!a || !b) return false;
+    const base = (s: string) => s.split(/[\\/]/).pop()!.trim().toUpperCase();
+    return base(a) === base(b);
+  }
+
+  // Find the job a printer is currently working on. Matches PRINTING or PAUSED
+  // (a paused print is still "active"). When a fileName is supplied we prefer
+  // the job whose file matches it, falling back to the most recently started
+  // active job so a mismatch never silently acts on the wrong job.
+  private async findActiveJob(printerId: number, fileName?: string): Promise<PrintJob | null> {
+    const active = await this.printJobRepository.find({
+      where: [
+        { printerId, status: "PRINTING" },
+        { printerId, status: "PAUSED" },
+      ],
+      order: { startedAt: "DESC" },
+    });
+
+    if (active.length === 0) return null;
+    if (fileName) {
+      const match = active.find((j) => this.sameFile(j.fileName, fileName));
+      if (match) return match;
+    }
+    return active[0];
+  }
+
   async handleFileAnalyzed(jobId: number, metadata: PrintJobMetadata, thumbnails?: any[]): Promise<PrintJob> {
     const job = await this.printJobRepository.findOne({ where: { id: jobId } });
     if (!job) {
@@ -180,12 +199,12 @@ export class PrintJobService implements IPrintJobService {
       order: { startedAt: "DESC" },
     });
 
-    if (existingJob?.fileName === fileName && !jobId) {
+    if (existingJob && !jobId && this.sameFile(existingJob.fileName, fileName)) {
       return existingJob;
     }
 
     // Different file is printing - mark the old one as UNKNOWN
-    if (existingJob && existingJob.fileName !== fileName && !jobId) {
+    if (existingJob && !jobId && !this.sameFile(existingJob.fileName, fileName)) {
       existingJob.status = "UNKNOWN";
       existingJob.statusReason =
         "Print state unknown - printer started new job while previous job was still marked as printing. " +
@@ -316,17 +335,14 @@ export class PrintJobService implements IPrintJobService {
   }
 
   async handlePrintCompleted(printerId: number, fileName?: string): Promise<PrintJob | null> {
-    const job = await this.printJobRepository.findOne({
-      where: { printerId, status: "PRINTING" },
-      order: { startedAt: "DESC" },
-    });
+    const job = await this.findActiveJob(printerId, fileName);
 
     if (!job) {
       this.logger.warn(`No active print job found for printer ${printerId} on completion`);
       return null;
     }
 
-    if (fileName && job.fileName !== fileName) {
+    if (fileName && !this.sameFile(job.fileName, fileName)) {
       this.logger.warn(`Filename mismatch on completion: expected "${job.fileName}", got "${fileName}"`);
     }
 
@@ -355,10 +371,7 @@ export class PrintJobService implements IPrintJobService {
   }
 
   async handlePrintFailed(printerId: number, reason: string, fileName?: string): Promise<PrintJob | null> {
-    const job = await this.printJobRepository.findOne({
-      where: { printerId, status: "PRINTING" },
-      order: { startedAt: "DESC" },
-    });
+    const job = await this.findActiveJob(printerId, fileName);
 
     if (!job) {
       this.logger.warn(`No active print job found for printer ${printerId} on failure`);
@@ -386,10 +399,9 @@ export class PrintJobService implements IPrintJobService {
   }
 
   async handlePrintCancelled(printerId: number, reason?: string): Promise<PrintJob | null> {
-    const job = await this.printJobRepository.findOne({
-      where: { printerId, status: "PRINTING" },
-      order: { startedAt: "DESC" },
-    });
+    // A cancel can arrive while the job is PAUSED (user paused, then stopped),
+    // so match active jobs broadly rather than PRINTING-only.
+    const job = await this.findActiveJob(printerId);
 
     if (!job) {
       this.logger.warn(`No active print job found for printer ${printerId} on cancellation`);

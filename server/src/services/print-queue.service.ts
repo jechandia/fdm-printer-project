@@ -10,15 +10,16 @@ import { FileStorageService } from "@/services/file-storage.service";
 import { PrinterSocketStore } from "@/state/printer-socket.store";
 import { SOCKET_STATE } from "@/shared/dtos/socket-state.type";
 import { API_STATE } from "@/shared/dtos/api-state.type";
-import { captureException } from "@sentry/node";
 import { PrinterMaintenanceLogService } from "@/services/orm/printer-maintenance-log.service";
 import { BadRequestException } from "@/exceptions/runtime.exceptions";
 
 // Subfolder on the printer's own storage where File-Storage prints are uploaded.
 // Keeps print copies out of the printer's root and lets us clean them up: the
-// file from the previous print is deleted right before the next one is uploaded
-// (deleting at completion time is unreliable on PrusaLink, which keeps the
-// just-finished file "selected" and answers 409 until the user dismisses it).
+// whole folder is swept right before the next print is uploaded (deleting at
+// completion time is unreliable on PrusaLink, which keeps the just-finished
+// file "selected" and answers 409 until the user dismisses it). Sweeping the
+// folder rather than tracking filenames in memory also reclaims orphans left
+// behind by a server restart.
 export const PRINTER_TEMP_FOLDER = "prusahero-temp";
 
 export interface QueuedJob {
@@ -73,10 +74,6 @@ export class PrintQueueService implements IPrintQueueService {
   printerRepository: Repository<Printer>;
   eventEmitter2: EventEmitter2;
   private readonly logger: LoggerService;
-  // Printer-side paths of temp files left by each printer's File-Storage prints,
-  // pending deletion. Cleared as each is deleted before a subsequent upload; a
-  // failed delete stays in the set and is retried on the next print.
-  private readonly pendingTempFiles = new Map<number, Set<string>>();
 
   constructor(
     loggerFactory: ILoggerFactory,
@@ -92,29 +89,21 @@ export class PrintQueueService implements IPrintQueueService {
     this.eventEmitter2 = eventEmitter2;
     this.logger = loggerFactory(PrintQueueService.name);
 
-    this.eventEmitter2.on(
-      "printQueue.jobSubmitted",
-      (event: {
-        printerId: number;
-        jobId: number;
-        fileName: string;
-        fileStorageId?: string;
-        usbFilePath?: string;
-        queuePosition?: number | null;
-      }) => {
-        this.handleJobSubmission(
-          event.printerId,
-          event.jobId,
-          event.fileName,
-          event.fileStorageId,
-          event.usbFilePath,
-          event.queuePosition,
-        ).catch((error) => {
-          this.logger.error(`Failed to handle job submission for job ${event.jobId}`, error);
-          captureException(error);
-        });
-      },
-    );
+    // Auto-advance the queue: when the active job reaches a terminal state, try
+    // to dispatch the next queued job. Best-effort — the printer might be
+    // offline or there may be nothing queued, so failures are only logged.
+    const advance = (event: { printerId?: number }) => {
+      const printerId = event?.printerId;
+      if (!printerId) return;
+      this.processQueue(printerId).catch((error) => {
+        this.logger.debug(
+          `Queue auto-advance skipped for printer ${printerId}: ${error instanceof Error ? error.message : error}`,
+        );
+      });
+    };
+    this.eventEmitter2.on("printJob.completed", advance);
+    this.eventEmitter2.on("printJob.failed", advance);
+    this.eventEmitter2.on("printJob.cancelled", advance);
   }
 
   private isPrinterConnected(printerId: number): { connected: boolean; reason?: string } {
@@ -333,6 +322,26 @@ export class PrintQueueService implements IPrintQueueService {
     }
   }
 
+  // Refuse to dispatch a second print to a printer that's already busy. The
+  // observer (printer-events.cache) keeps an active job at PRINTING/PAUSED, so
+  // a busy printer means starting another print would either be rejected by the
+  // firmware or silently clobber the running job's tracking.
+  private async ensurePrinterIdle(printerId: number, exceptJobId: number): Promise<void> {
+    const active = await this.printJobRepository.findOne({
+      where: [
+        { printerId, status: "PRINTING" },
+        { printerId, status: "PAUSED" },
+      ],
+      order: { startedAt: "DESC" },
+    });
+
+    if (active && active.id !== exceptJobId) {
+      throw new BadRequestException(
+        `Printer ${printerId} is busy with job ${active.id} (${active.status}) and cannot start another print.`,
+      );
+    }
+  }
+
   private ensurePrinterAssignment(job: PrintJob, printerId: number): void {
     if (!job.printerId) {
       job.printerId = printerId;
@@ -380,139 +389,119 @@ export class PrintQueueService implements IPrintQueueService {
 
     this.ensurePrinterAssignment(job, printerId);
     await this.ensurePrinterNotInMaintenance(printerId);
+    await this.ensurePrinterIdle(printerId, jobId);
 
-    const queuePosition = job.queuePosition;
+    this.logger.log(`Submitting job ${jobId} (${job.fileName}) to printer ${printerId}`);
+
+    // Push to the printer FIRST and only mutate the job once the firmware has
+    // accepted it. If the upload/start fails the job stays QUEUED with its
+    // queuePosition intact, so the user (or auto-advance) can retry instead of
+    // it dropping out of the queue as FAILED.
+    try {
+      await this.dispatchToPrinter(printerId, job);
+    } catch (error) {
+      job.statusReason = `Print submission failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      await this.printJobRepository.save(job);
+      this.logger.error(`Failed to submit job ${jobId} to printer ${printerId} - left in queue for retry`, error);
+      throw error;
+    }
+
     if (job.queuePosition !== null) {
       const oldPosition = job.queuePosition;
       job.queuePosition = null;
       await this.compactQueuePositions(printerId, oldPosition);
     }
-
     job.status = "PRINTING";
     job.startedAt = new Date();
+    job.statusReason = null;
     await this.printJobRepository.save(job);
 
-    this.logger.log(`Submitting job ${jobId} (${job.fileName}) to printer ${printerId}`);
-    this.eventEmitter2.emit("printQueue.jobSubmitted", {
-      printerId,
-      jobId: job.id,
-      fileName: job.fileName,
-      fileStorageId: job.fileStorageId,
-      usbFilePath: job.usbFilePath,
-      queuePosition,
-    });
+    this.logger.log(`Successfully submitted job ${jobId} to printer ${printerId}`);
   }
 
-  private async handleJobSubmission(
-    printerId: number,
-    jobId: number,
-    fileName: string,
-    fileStorageId: string | null | undefined,
-    usbFilePath: string | null | undefined,
-    queuePosition?: number | null,
-  ): Promise<void> {
-    this.logger.log(`Handling job submission for job ${jobId} on printer ${printerId}`);
+  private async dispatchToPrinter(printerId: number, job: PrintJob): Promise<void> {
+    const printerApi = this.printerApiFactory.getById(printerId);
+    const fileName = job.fileName;
 
-    try {
-      const printerApi = this.printerApiFactory.getById(printerId);
+    if (job.usbFilePath) {
+      // File already lives on the printer's storage — just tell the firmware
+      // to start it. Mirrors the per-segment encoding the legacy USB-print
+      // controller uses so PrusaLink/OctoPrint accept paths with spaces.
+      const encodedPath = job.usbFilePath.split("/").map(encodeURIComponent).join("/");
+      this.logger.log(`Starting print of USB file ${job.usbFilePath} on printer ${printerId}`);
+      await printerApi.startPrint(encodedPath);
+    } else if (job.fileStorageId) {
+      // Clean up temp files from this printer's previous print(s) before we
+      // upload the next one — by now the printer has moved on so they're no
+      // longer "selected"/in use and the delete succeeds.
+      await this.cleanupTempFolder(printerApi, printerId);
 
-      if (usbFilePath) {
-        // File already lives on the printer's storage — just tell the firmware
-        // to start it. Mirrors the per-segment encoding the legacy USB-print
-        // controller uses so PrusaLink/OctoPrint accept paths with spaces.
-        const encodedPath = usbFilePath.split("/").map(encodeURIComponent).join("/");
-        this.logger.log(`Starting print of USB file ${usbFilePath} on printer ${printerId}`);
-        await printerApi.startPrint(encodedPath);
-      } else if (fileStorageId) {
-        // Clean up temp files from this printer's previous print(s) before we
-        // upload the next one — by now the printer has moved on so they're no
-        // longer "selected"/in use and the delete succeeds.
-        await this.cleanupPendingTempFiles(printerApi, printerId);
-
-        // Ensure the temp folder exists (no-op if the printer type or firmware
-        // doesn't support folder creation).
-        if (typeof printerApi.createFolder === "function") {
-          try {
-            await printerApi.createFolder(PRINTER_TEMP_FOLDER);
-          } catch (e) {
-            this.logger.debug(
-              `Could not pre-create temp folder on printer ${printerId} (continuing): ${
-                e instanceof Error ? e.message : e
-              }`,
-            );
-          }
-        }
-
-        const fileSize = this.fileStorageService.getFileSize(fileStorageId);
-        const fileStream = this.fileStorageService.readFileStream(fileStorageId);
-
-        this.logger.log(`Uploading file ${fileName} to printer ${printerId} (temp folder) and starting print`);
-        await printerApi.uploadFile({
-          stream: fileStream,
-          fileName,
-          contentLength: fileSize,
-          startPrint: true,
-          targetPath: PRINTER_TEMP_FOLDER,
-        });
-
-        // Remember where it landed so the next print can delete it.
-        let pending = this.pendingTempFiles.get(printerId);
-        if (!pending) {
-          pending = new Set<string>();
-          this.pendingTempFiles.set(printerId, pending);
-        }
-        pending.add(`${PRINTER_TEMP_FOLDER}/${fileName}`);
-      } else {
-        throw new Error(`Job ${jobId} has neither fileStorageId nor usbFilePath - cannot submit to printer`);
-      }
-      this.logger.log(`Successfully submitted job ${jobId} to printer ${printerId}`);
-
-      if (queuePosition !== null && queuePosition !== undefined) {
-        const job = await this.printJobRepository.findOne({ where: { id: jobId } });
-        if (job?.queuePosition === queuePosition) {
-          job.queuePosition = null;
-          await this.printJobRepository.save(job);
-          await this.compactQueuePositions(printerId, queuePosition);
-          this.logger.log(`Removed job ${jobId} from queue after successful submission`);
+      // Ensure the temp folder exists (no-op if the printer type or firmware
+      // doesn't support folder creation).
+      if (typeof printerApi.createFolder === "function") {
+        try {
+          await printerApi.createFolder(PRINTER_TEMP_FOLDER);
+        } catch (e) {
+          this.logger.debug(
+            `Could not pre-create temp folder on printer ${printerId} (continuing): ${
+              e instanceof Error ? e.message : e
+            }`,
+          );
         }
       }
-    } catch (error) {
-      this.logger.error(`Failed to submit job ${jobId} to printer ${printerId}`, error);
 
-      try {
-        const job = await this.printJobRepository.findOne({ where: { id: jobId } });
-        if (job) {
-          job.status = "FAILED";
-          job.statusReason = `Print submission failed: ${error instanceof Error ? error.message : "Unknown error"}`;
-          job.endedAt = new Date();
-          await this.printJobRepository.save(job);
-          this.logger.log(`Updated job ${jobId} status to FAILED (still in queue for retry)`);
-        }
-      } catch (updateError) {
-        this.logger.error(`Failed to update job ${jobId} status after submission error`, updateError);
-      }
+      const fileSize = this.fileStorageService.getFileSize(job.fileStorageId);
+      const fileStream = this.fileStorageService.readFileStream(job.fileStorageId);
 
-      throw error;
+      this.logger.log(`Uploading file ${fileName} to printer ${printerId} (temp folder) and starting print`);
+      await printerApi.uploadFile({
+        stream: fileStream,
+        fileName,
+        contentLength: fileSize,
+        startPrint: true,
+        targetPath: PRINTER_TEMP_FOLDER,
+      });
+    } else {
+      throw new Error(`Job ${job.id} has neither fileStorageId nor usbFilePath - cannot submit to printer`);
     }
+
+    this.logger.log(`Dispatched job ${job.id} to printer ${printerId}`);
   }
 
   /**
-   * Best-effort removal of temp files left on the printer by previous
-   * File-Storage prints. Never throws — a failure here must not block the new
-   * print; the path stays pending and is retried before the next print.
+   * Best-effort sweep of the printer's temp folder before a new File-Storage
+   * print. Deletes everything left in `PRINTER_TEMP_FOLDER` (the previous
+   * print's file plus any orphans from an earlier server restart). Never throws
+   * — cleanup must not block the new print; a file that's still "in use" (409)
+   * is simply left for the next sweep.
    */
-  private async cleanupPendingTempFiles(printerApi: { deleteFile(path: string): Promise<void> }, printerId: number) {
-    const pending = this.pendingTempFiles.get(printerId);
-    if (!pending || pending.size === 0) return;
+  private async cleanupTempFolder(
+    printerApi: {
+      getFiles(recursive?: boolean, startDir?: string): Promise<{ files: Array<{ path: string }> }>;
+      deleteFile(path: string): Promise<void>;
+    },
+    printerId: number,
+  ) {
+    let files: Array<{ path: string }>;
+    try {
+      const listing = await printerApi.getFiles(false, PRINTER_TEMP_FOLDER);
+      files = listing?.files ?? [];
+    } catch (e) {
+      // Folder doesn't exist yet, or the printer is momentarily unreachable —
+      // nothing to clean, proceed with the upload.
+      this.logger.debug(
+        `Could not list temp folder on printer ${printerId} (continuing): ${e instanceof Error ? e.message : e}`,
+      );
+      return;
+    }
 
-    for (const path of [...pending]) {
+    for (const file of files) {
       try {
-        await printerApi.deleteFile(path);
-        pending.delete(path);
-        this.logger.log(`Deleted temp print file ${path} on printer ${printerId}`);
+        await printerApi.deleteFile(file.path);
+        this.logger.log(`Deleted leftover temp print file ${file.path} on printer ${printerId}`);
       } catch (e) {
         this.logger.warn(
-          `Could not delete temp print file ${path} on printer ${printerId} (will retry next print): ${
+          `Could not delete temp print file ${file.path} on printer ${printerId} (will retry next print): ${
             e instanceof Error ? e.message : e
           }`,
         );

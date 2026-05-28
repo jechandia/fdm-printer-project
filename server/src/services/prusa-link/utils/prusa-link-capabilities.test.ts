@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { VersionDto } from "@/services/prusa-link/dto/version.dto";
-import {
-  acceptsExtension,
-  deriveCapabilities,
-} from "@/services/prusa-link/utils/prusa-link-capabilities";
+import { acceptsExtension, deriveCapabilities } from "@/services/prusa-link/utils/prusa-link-capabilities";
 
 const version = (over: Partial<VersionDto>): VersionDto => ({
   api: "2.0.0",
@@ -31,9 +28,7 @@ describe("deriveCapabilities", () => {
   });
 
   it("forces legacy multipart + gcode-only for Einsy boards even when upload-by-put is advertised", () => {
-    const caps = deriveCapabilities(
-      version({ text: "PrusaLink 0.8.1", original: "PrusaLink I3MK3S" }),
-    );
+    const caps = deriveCapabilities(version({ text: "PrusaLink 0.8.1", original: "PrusaLink I3MK3S" }));
     expect(caps.supportsBgcode).toBe(false);
     expect(caps.uploadTransport).toBe("legacyMultipart");
     expect(caps.fileExtensions).toEqual([".gcode"]);

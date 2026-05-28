@@ -30,6 +30,12 @@ export type PrinterEventsCacheDto = Record<PrinterEventsCacheKey, any>;
 
 export class PrinterEventsCache extends KeyDiffCache<PrinterEventsCacheDto> {
   private readonly logger: LoggerService;
+  // Last PrusaLink link_state we acted on per printer. PrusaLink has no event
+  // stream — we poll /status, so the same terminal/transition state repeats on
+  // every tick. Tracking the previous state lets us fire start/pause/resume/
+  // finish/fail transitions exactly once instead of re-running (and re-logging,
+  // re-triggering analysis) every poll.
+  private readonly lastPollState = new Map<number, string>();
 
   constructor(
     private readonly eventEmitter2: EventEmitter2,
@@ -82,6 +88,9 @@ export class PrinterEventsCache extends KeyDiffCache<PrinterEventsCacheDto> {
   }
 
   private async handlePrintersDeleted(event: PrintersDeletedEvent) {
+    for (const id of event.printerIds) {
+      this.lastPollState.delete(id);
+    }
     await this.deleteKeysBatch(event.printerIds);
   }
 
@@ -122,37 +131,66 @@ export class PrinterEventsCache extends KeyDiffCache<PrinterEventsCacheDto> {
     // use the same `filename`, so they stay consistent.
     const filename = payload?.job?.file?.display ?? payload?.job?.file?.name ?? payload?.job?.file?.path;
     const completion = payload?.progress?.completion;
-    if (stateUpper === "PRINTING" && filename) {
-      const printerName = await this.getPrinterName(printerId);
-      const job = await this.printJobService.markStarted(printerId, filename, printerName);
 
-      if (job) {
-        await this.printerThumbnailCache.handleJobStarted(printerId, job.id);
-      }
-
-      if (job && !job.fileStorageId && job.analysisState === "NOT_ANALYZED") {
-        this.logger.log(`Job ${job.id} has no local file - triggering download and analysis`);
-        await this.printJobService.triggerFileAnalysis(job.id);
-      }
-    }
+    // Progress updates continuously and is not a transition, so it runs every
+    // poll (it no-ops when there's no active PRINTING job).
     if (typeof completion === "number" && filename) {
       await this.printJobService.markProgress(printerId, filename, completion);
     }
-    // PrusaLink terminal states. ATTENTION is purposefully excluded —
-    // it's a transient hold, not a job ending. ERROR and STOPPED end
-    // the job as failed; FINISHED ends it as completed.
-    if (stateUpper === "FINISHED" && filename) {
-      const job = await this.printJobService.markFinished(printerId, filename);
-      if (job) {
-        await this.printerThumbnailCache.handleJobCompleted(printerId, job.id);
+
+    const prev = this.lastPollState.get(printerId);
+
+    if (stateUpper === "PRINTING" && filename) {
+      if (prev !== "PRINTING") {
+        if (prev === "PAUSED") {
+          // Resumed from a pause we previously observed.
+          await this.printJobService.handlePrintResumed(printerId);
+        } else {
+          const printerName = await this.getPrinterName(printerId);
+          const job = await this.printJobService.markStarted(printerId, filename, printerName);
+
+          if (job) {
+            await this.printerThumbnailCache.handleJobStarted(printerId, job.id);
+          }
+
+          if (job && !job.fileStorageId && job.analysisState === "NOT_ANALYZED") {
+            this.logger.log(`Job ${job.id} has no local file - triggering download and analysis`);
+            await this.printJobService.triggerFileAnalysis(job.id);
+          }
+        }
+        this.lastPollState.set(printerId, "PRINTING");
+      }
+    } else if (stateUpper === "PAUSED" && filename) {
+      if (prev !== "PAUSED") {
+        await this.printJobService.handlePrintPaused(printerId);
+        this.lastPollState.set(printerId, "PAUSED");
+      }
+    } else if (stateUpper === "FINISHED" && filename) {
+      // PrusaLink terminal states. ATTENTION is purposefully excluded — it's a
+      // transient hold, not a job ending. FINISHED ends the job as completed.
+      if (prev !== "FINISHED") {
+        const job = await this.printJobService.markFinished(printerId, filename);
+        if (job) {
+          await this.printerThumbnailCache.handleJobCompleted(printerId, job.id);
+        }
+        this.lastPollState.set(printerId, "FINISHED");
       }
     } else if ((stateUpper === "STOPPED" || stateUpper === "CANCELLING" || flags?.cancelling) && filename) {
-      // STOPPED is PrusaLink's "user cancelled" terminal state. Match
-      // the controller's cancel path so the job ends up as CANCELLED
-      // instead of FAILED.
-      await this.printJobService.handlePrintCancelled(printerId, stateText ?? "Cancelled");
+      // STOPPED is PrusaLink's "user cancelled" terminal state. Match the
+      // controller's cancel path so the job ends up as CANCELLED, not FAILED.
+      if (prev !== "STOPPED" && prev !== "CANCELLING") {
+        await this.printJobService.handlePrintCancelled(printerId, stateText ?? "Cancelled");
+        this.lastPollState.set(printerId, stateUpper || "STOPPED");
+      }
     } else if ((stateUpper === "ERROR" || flags?.error) && !stateUpper.startsWith("ATTENTION") && filename) {
-      await this.printJobService.markFailed(printerId, filename, stateText ?? "Error");
+      if (prev !== "ERROR") {
+        await this.printJobService.markFailed(printerId, filename, stateText ?? "Error");
+        this.lastPollState.set(printerId, "ERROR");
+      }
+    } else if (stateUpper) {
+      // Idle / READY / BUSY / ATTENTION — not a tracked transition, but record
+      // it so a subsequent PRINTING is detected as a fresh start edge.
+      this.lastPollState.set(printerId, stateUpper);
     }
   }
 }
