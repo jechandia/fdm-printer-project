@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack (Yarn 4)
+        run: sudo corepack enable
+
+      - name: Install Vite+ (vp CLI)
+        run: npm install -g vite-plus
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Typecheck + lint (server)
+        run: yarn workspace @prusahero/server tsc
+
+      - name: Test (server)
+        run: yarn test
+
+      - name: Build (client then server)
+        run: yarn build
