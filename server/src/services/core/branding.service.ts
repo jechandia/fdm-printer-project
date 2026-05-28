@@ -95,8 +95,7 @@ export class BrandingService {
   }
 
   /**
-   * Re-apply the custom logo to every bundle directory. Called on boot and
-   * after `ClientDistDownloadTask` extracts a fresh bundle.
+   * Re-apply the custom logo to every bundle directory. Called on boot.
    */
   async applyToBundles(): Promise<void> {
     const source = await this.readSourceLogo();

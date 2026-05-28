@@ -76,8 +76,6 @@ export const DITokens = {
   fileUploadTrackerCache: "fileUploadTrackerCache",
   // Tasks
   bootTask: "bootTask",
-  softwareUpdateTask: "softwareUpdateTask",
-  clientDistDownloadTask: "clientDistDownloadTask",
   socketIoTask: "socketIoTask",
   printerWebsocketTask: "printerWebsocketTask",
   printerWebsocketRestoreTask: "printerWebsocketRestoreTask",

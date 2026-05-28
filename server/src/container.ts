@@ -13,7 +13,6 @@ import { SocketIoTask } from "./tasks/socketio.task";
 import { SocketFactory } from "./services/socket.factory";
 import { configureEventEmitter } from "./handlers/event-emitter";
 import { AppConstants } from "./server.constants";
-import { SoftwareUpdateTask } from "./tasks/software-update.task";
 import { LoggerFactory } from "./handlers/logger-factory";
 import { MulterService } from "./services/core/multer.service";
 import { FileUploadTrackerCache } from "./state/file-upload-tracker.cache";
@@ -32,7 +31,6 @@ import { FloorStore } from "./state/floor.store";
 import { YamlService } from "./services/core/yaml.service";
 import { MonsterPiService } from "./services/core/monsterpi.service";
 import { BatchCallService } from "./services/core/batch-call.service";
-import { ClientDistDownloadTask } from "./tasks/client-bundle.task";
 import { OctoprintWebsocketAdapter } from "./services/octoprint/octoprint-websocket.adapter";
 import { PrinterCache } from "./state/printer.cache";
 import { PrinterSocketStore } from "./state/printer-socket.store";
@@ -177,9 +175,7 @@ export function configureContainer() {
     [di.printFileDownloaderService]: asClass(PrintFileDownloaderService).singleton(),
 
     [di.bootTask]: asClass(BootTask),
-    [di.softwareUpdateTask]: asClass(SoftwareUpdateTask), // Provided SSE handlers (couplers) shared with controllers
     [di.socketIoTask]: asClass(SocketIoTask).singleton(), // This task is a quick task (~100ms per printer)
-    [di.clientDistDownloadTask]: asClass(ClientDistDownloadTask).singleton(),
     [di.printerWebsocketTask]: asClass(PrinterWebsocketTask).singleton(), // This task is a recurring heartbeat task
     [di.printerWebsocketRestoreTask]: asClass(PrinterWebsocketRestoreTask).singleton(), // Task aimed at testing the printer API
     [di.printJobAnalysisTask]: asClass(PrintJobAnalysisTask).singleton(),
