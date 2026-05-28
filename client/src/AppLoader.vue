@@ -277,7 +277,7 @@ onUnmounted(() => {
 async function loadApp() {
   appLoaderStore.setLoading(true)
   const loadingMessages = [
-    'Loading FDM Monster',
+    'Loading PrusaHero',
     'Loading it all',
     'Loading features',
     'Loading what needs to be loaded',

@@ -92,14 +92,14 @@ export class ServerReleaseService {
         `\x1b[36mCurrent release was found in github releases.\x1b[0m
     Here's github's latest released: \x1b[32m${latestReleaseTag}\x1b[0m
     Here's your release tag: \x1b[32m${packageVersion}\x1b[0m
-    Thanks for using FDM Monster!`,
+    Thanks for using PrusaHero!`,
       );
     } else {
       this.logger.log(
         `\x1b[36mCurrent release tag not found in github releases.\x1b[0m
     Here's github's latest released: \x1b[32m${latestReleaseTag}\x1b[0m
     Here's your release tag: \x1b[32m${packageVersion}\x1b[0m
-    Thanks for using FDM Monster!`,
+    Thanks for using PrusaHero!`,
       );
       return;
     }
@@ -116,7 +116,7 @@ export class ServerReleaseService {
       return this.logger.log(`Installed release: ${packageVersion}. You are up to date!`);
     } else {
       return this.logger.error(
-        "Cant check release as package.json version environment variable is not set. Make sure FDM Server is run from a 'package.json' or NPM context.",
+        "Cant check release as package.json version environment variable is not set. Make sure PrusaHero Server is run from a 'package.json' or NPM context.",
       );
     }
   }

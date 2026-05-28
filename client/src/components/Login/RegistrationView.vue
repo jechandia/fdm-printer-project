@@ -20,8 +20,8 @@
               <Logo />
 
               <v-toolbar-title class="text-uppercase text-red">
-                <strong> FDM&nbsp; </strong>
-                <strong> Monster </strong>
+                <strong> Prusa&nbsp; </strong>
+                <strong> Hero </strong>
               </v-toolbar-title>
 
               <v-toolbar-title class="mt-lg-6 mt-sm-5 mb-md-5">

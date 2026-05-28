@@ -31,9 +31,9 @@
       >
         <v-toolbar color="primary">
           <v-icon class="ml-5">help</v-icon>
-          <h2 class="ml-10">FDM Monster Documentation</h2>
+          <h2 class="ml-10">PrusaHero Documentation</h2>
           <v-spacer />
-          <span class="mr-10"> docs.fdm-monster.net </span>
+          <span class="mr-10"> github.com/jechandia/prusahero </span>
 
           <v-btn
             variant="flat"
@@ -46,7 +46,7 @@
 
         <iframe
           height="100%"
-          src="https://docs.fdm-monster.net"
+          src="https://github.com/jechandia/prusahero"
           style="background-color: black; border-width: 0"
           width="100%"
         />

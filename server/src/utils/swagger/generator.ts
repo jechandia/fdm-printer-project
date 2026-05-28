@@ -14,17 +14,17 @@ export class SwaggerGenerator {
   private readonly openApiDoc: OpenAPIObject = {
     openapi: "3.1.0",
     info: {
-      title: "FDM Monster API",
+      title: "PrusaHero API",
       version: process.env.npm_package_version || "2.0.0",
       description:
-        "FDM Monster is a bulk PrusaLink manager to set up, configure and monitor 3D printers. Our aim is to provide a neat overview over your farm.",
+        "PrusaHero is a PrusaLink farm manager to set up, configure and monitor Prusa 3D printers. Our aim is to provide a neat overview over your farm.",
       license: {
         name: "AGPL-3.0-or-later",
         url: "https://www.gnu.org/licenses/agpl-3.0.en.html",
       },
       contact: {
-        name: "FDM Monster GitHub",
-        url: "https://github.com/fdm-monster/fdm-monster",
+        name: "PrusaHero GitHub",
+        url: "https://github.com/jechandia/prusahero",
       },
     },
     servers: [

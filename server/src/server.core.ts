@@ -18,7 +18,7 @@ const httpRequestsTotal = new Counter({
 });
 
 export async function setupServer() {
-  const logger = new LoggerService("FDM-ServerCore");
+  const logger = new LoggerService("PrusaHero-ServerCore");
   const httpServer = express();
 
   const databasePath = getDatabaseFolder();

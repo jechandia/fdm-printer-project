@@ -12,7 +12,7 @@
         <v-icon>badge</v-icon>
       </v-btn>
     </template>
-    <template #default> Set OctoPrint name to the FDM Monster name </template>
+    <template #default> Set OctoPrint name to the PrusaHero name </template>
   </v-tooltip>
 </template>
 

@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 src="${1:-}"
 if [ -z "$src" ]; then
   # Pick the newest tarball under backups/ if no arg given.
-  src=$(ls -1t backups/fdm-monster-*.tar.gz 2>/dev/null | head -1 || true)
+  src=$(ls -1t backups/prusahero-*.tar.gz 2>/dev/null | head -1 || true)
   if [ -z "$src" ]; then
     echo "Usage: yarn restore <path/to/backup.tar.gz>" >&2
     echo "(or run \`yarn backup\` first, and \`yarn restore\` will pick the newest)" >&2
@@ -31,7 +31,7 @@ fi
 
 # Make sure the server isn't holding the sqlite file open. Best-effort kill.
 if pgrep -f "node dist/index.js" > /dev/null 2>&1; then
-  echo "⚠️  fdm-monster server is running — stop it before restoring." >&2
+  echo "⚠️  prusahero server is running — stop it before restoring." >&2
   exit 1
 fi
 

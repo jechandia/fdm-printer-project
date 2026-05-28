@@ -1,16 +1,16 @@
 {
-  "name": "@fdm-monster/client-next",
+  "name": "@prusahero/client-next",
   "version": "2.4.2",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fdm-monster/fdm-monster-client-next.git"
+    "url": "git+https://github.com/jechandia/prusahero.git"
   },
   "author": "David Zwart",
   "license": "AGPL-3.0-or-later",
   "publishConfig": {
     "access": "public"
   },
-  "description": "FDM Monster Client Next is the Vue3 frontend for FDM Monster.",
+  "description": "PrusaHero Client is the Vue3 frontend for PrusaHero.",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

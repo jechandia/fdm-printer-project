@@ -3,7 +3,7 @@
     <v-card-text>
       <SettingSection
         title="PrusaSlicer Integration"
-        tooltip="Configure API key authentication for slicer file uploads. This allows PrusaSlicer and other slicers to upload files directly to FDM Monster."
+        tooltip="Configure API key authentication for slicer file uploads. This allows PrusaSlicer and other slicers to upload files directly to PrusaHero."
         :usecols="false"
       >
         <v-alert color="info" variant="tonal" class="mb-4" density="compact">

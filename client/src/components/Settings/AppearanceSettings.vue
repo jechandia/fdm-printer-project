@@ -3,7 +3,7 @@
     <div class="settings-page__header mb-4">
       <h1 class="text-h5 font-weight-bold mb-1">Appearance</h1>
       <div class="text-body-2 text-medium-emphasis">
-        Customize how FDM Monster looks for your team.
+        Customize how PrusaHero looks for your team.
       </div>
     </div>
 
@@ -14,7 +14,7 @@
           <h3 class="text-subtitle-1 font-weight-bold mb-0">Custom logo</h3>
         </div>
         <div class="text-body-2 text-medium-emphasis mb-4">
-          Replace the default FDM Monster logo with your own brand. PNG or SVG,
+          Replace the default PrusaHero logo with your own brand. PNG or SVG,
           recommended square aspect ratio for the navigation rail.
         </div>
 
@@ -36,7 +36,7 @@
               <img
                 v-else
                 :src="defaultLogo"
-                alt="Default FDM Monster logo"
+                alt="Default PrusaHero logo"
                 class="appearance__logo-img"
               />
               <v-chip

@@ -4,20 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-The repo is a **Yarn 4 workspaces monorepo** (`github.com/jechandia/fdm-printer-project`). Both the backend and frontend live in-tree:
+The repo is a **Yarn 4 workspaces monorepo** (`github.com/jechandia/prusahero`). Both the backend and frontend live in-tree:
 
-- `server/` — backend, npm package `@fdm-monster/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms. Built with **Vite+** (the `vp` global CLI).
-- `client/` — frontend, npm package `@fdm-monster/client-next`. Vue 3 + Vuetify SPA built with Vite.
+- `server/` — backend, npm package `@prusahero/server`. Node + Express + TypeORM (SQLite) server that manages 3D printer farms. Built with **Vite+** (the `vp` global CLI).
+- `client/` — frontend, npm package `@prusahero/client-next`. Vue 3 + Vuetify SPA built with Vite.
 
 The workspace is intentionally flat: just `server` and `client`. The upstream OSS scaffolding (contributor docs, GH workflows, screenshot suites, mock-printer test consoles) has been stripped — this is a deployment-focused fork, not a community fork.
 
-The server depends on the client via `workspace:*`, so its `node_modules/@fdm-monster/client-next` is a symlink to `client/`. Building the client first produces `client/dist/`, which the server then serves as static files at runtime — no npm publish step needed for development.
+The server depends on the client via `workspace:*`, so its `node_modules/@prusahero/client-next` is a symlink to `client/`. Building the client first produces `client/dist/`, which the server then serves as static files at runtime — no npm publish step needed for development.
 
 The two projects use **different toolchains** — do not assume commands from one work in the other. Both share a single root `node_modules/` via Yarn workspaces, but `server/` is driven by Vite+ (`vp`) while `client/` uses plain Yarn + Vite scripts.
 
 ### Historical note
 
-Until May 2026 the workspace pulled `server/` and `client/` in as git submodules pointing at separate repos (`fdm-printer-farm` and `fdm-monster-client-next`). Those upstream repos still exist on GitHub for historical reference but are no longer the source of truth — all new work happens here.
+Until May 2026 the workspace pulled `server/` and `client/` in as git submodules pointing at separate upstream repos. Those upstream repos still exist on GitHub for historical reference but are no longer the source of truth — all new work happens here. The project was also rebranded from "FDM Monster" to **PrusaHero** during the deployment-fork cleanup.
 
 ## Working in the monorepo
 
@@ -31,14 +31,14 @@ From the workspace root:
 Ops scripts (live under `scripts/`):
 
 - `yarn doctor` — preflight: Node 22+, yarn 4+, `vp` on PATH, `node_modules`+`dist` present, `server/.env` exists, `data/` writable, JWT secret non-default, target port free. Exits non-zero on failure so it slots into a deploy gate.
-- `yarn backup` — snapshots `data/` to `backups/fdm-monster-<timestamp>.tar.gz`.
+- `yarn backup` — snapshots `data/` to `backups/prusahero-<timestamp>.tar.gz`.
 - `yarn restore [path/to/backup.tar.gz]` — restores. With no arg, picks the newest tarball in `backups/`. Refuses if the server is running. Requires typing `yes`.
 - `yarn reset` — wipes `data/` so the next boot is a fresh FirstTimeSetup. Refuses if the server is running. Requires typing `reset`.
 
 You can also drive individual workspaces directly:
 
-- `yarn workspace @fdm-monster/server <script>`
-- `yarn workspace @fdm-monster/client-next <script>`
+- `yarn workspace @prusahero/server <script>`
+- `yarn workspace @prusahero/client-next <script>`
 
 ### Prerequisites
 
@@ -62,8 +62,8 @@ sudo corepack enable
 sudo npm install -g vite-plus
 
 # Pull and build:
-git clone https://github.com/jechandia/fdm-printer-project.git fdm-monster
-cd fdm-monster
+git clone https://github.com/jechandia/prusahero.git prusahero
+cd prusahero
 yarn install
 yarn build
 
@@ -73,28 +73,28 @@ yarn start
 
 ### Persistent via systemd
 
-For an always-on install, drop this unit at `/etc/systemd/system/fdm-monster.service` (adjust `User` and `WorkingDirectory` to match the VM):
+For an always-on install, drop this unit at `/etc/systemd/system/prusahero.service` (adjust `User` and `WorkingDirectory` to match the VM):
 
 ```ini
 [Unit]
-Description=FDM-Monster (3D printer farm manager)
+Description=PrusaHero (PrusaLink farm manager)
 After=network.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=fdm
-WorkingDirectory=/opt/fdm-monster
+User=prusahero
+WorkingDirectory=/opt/prusahero
 ExecStart=/usr/local/bin/yarn start
 Restart=on-failure
 RestartSec=5s
-EnvironmentFile=-/opt/fdm-monster/server/.env
+EnvironmentFile=-/opt/prusahero/server/.env
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Then `sudo systemctl daemon-reload && sudo systemctl enable --now fdm-monster`. Logs: `journalctl -u fdm-monster -f`.
+Then `sudo systemctl daemon-reload && sudo systemctl enable --now prusahero`. Logs: `journalctl -u prusahero -f`.
 
 Configuration lives in `server/.env` (see `server/.env.template` for the full list — `SERVER_PORT`, `JWT_SECRET`, media/database paths, etc.). Persistent state goes wherever `MEDIA_PATH` and `DATABASE_PATH` point; keep those on a backed-up volume.
 
@@ -102,14 +102,14 @@ Configuration lives in `server/.env` (see `server/.env.template` for the full li
 
 Uses **Vite+** (the `vp` global CLI), not plain npm/yarn/vite. See `server/.claude/CLAUDE.md` for the full Vite+ workflow and pitfalls. Key rules: do not call npm/yarn/vite/vitest/oxlint directly; use `vp` wrappers.
 
-Common commands (run inside `server/`, or via `yarn workspace @fdm-monster/server <script>` from root):
+Common commands (run inside `server/`, or via `yarn workspace @prusahero/server <script>` from root):
 
 - `vp install` — install deps for this workspace only (the root `yarn install` already covers it)
 - `yarn dev` — build in watch mode and start the server (`NODE_ENV=development START_SERVER=true vp pack --watch`)
 - `yarn build` — production library build (`vp pack`) into `dist/`
 - `yarn start` — run the built server (`node dist/index.js`)
 - `vp check` — format + lint + typecheck (also `yarn tsc` for just types)
-Database migrations (TypeORM, SQLite at `database/fdm-monster.sqlite`):
+Database migrations (TypeORM, SQLite at `database/prusahero.sqlite`):
 
 - `yarn typeorm:generate` — generate a migration from entity changes (`-d src/data-source.ts`)
 - `yarn typeorm:migrate` — run pending migrations
@@ -155,7 +155,7 @@ Hardware notes (verified against the physical farm — Prusa XL on Buddy fw 2.1.
 
 ## Frontend (`client/`)
 
-Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspace @fdm-monster/client-next <script>` from root):
+Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspace @prusahero/client-next <script>` from root):
 
 - `yarn dev` — Vite dev server on port 3000
 - `yarn build` — `vue-tsc --noEmit && vite build` into `dist/`

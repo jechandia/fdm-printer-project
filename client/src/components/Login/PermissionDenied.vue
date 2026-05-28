@@ -5,13 +5,13 @@
   >
     <v-app-bar color="primary">
       <v-toolbar-title class="text-uppercase text-white">
-        <span class="font-weight-light"> FDM </span>
-        <strong> Monster </strong>
+        <span class="font-weight-light"> Prusa </span>
+        <strong> Hero </strong>
       </v-toolbar-title>
     </v-app-bar>
 
     <img
-      alt="FDM Monster Background"
+      alt="PrusaHero Background"
       class="grid-bg-img align-content-center"
       src="/img/logo.svg"
       style="opacity: 0.06"

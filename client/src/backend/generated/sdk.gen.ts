@@ -27,8 +27,8 @@ import type {
   DeleteApiV2PrintQueueByPrinterIdByJobIdResponses,
   DeleteApiV2PrintQueueByPrinterIdClearData,
   DeleteApiV2PrintQueueByPrinterIdClearResponses,
-  DeleteApiV2ServerClearOutdatedFdmMonsterLogsData,
-  DeleteApiV2ServerClearOutdatedFdmMonsterLogsResponses,
+  DeleteApiV2ServerClearOutdatedPrusaHeroLogsData,
+  DeleteApiV2ServerClearOutdatedPrusaHeroLogsResponses,
   DeleteApiV2ServerDeleteAllPrintersData,
   DeleteApiV2ServerDeleteAllPrintersResponses,
   DeleteApiV2SettingsSlicerApiKeyData,
@@ -98,8 +98,8 @@ import type {
   GetApiV2ServerClientReleasesData,
   GetApiV2ServerClientReleasesResponses,
   GetApiV2ServerData,
-  GetApiV2ServerDumpFdmMonsterLogsData,
-  GetApiV2ServerDumpFdmMonsterLogsResponses,
+  GetApiV2ServerDumpPrusaHeroLogsData,
+  GetApiV2ServerDumpPrusaHeroLogsResponses,
   GetApiV2ServerGithubRateLimitData,
   GetApiV2ServerGithubRateLimitResponses,
   GetApiV2ServerResponses,
@@ -251,8 +251,8 @@ import type {
   PostApiV2PrintQueueByPrinterIdProcessResponses,
   PostApiV2PrintQueueByPrinterIdSubmitByJobIdData,
   PostApiV2PrintQueueByPrinterIdSubmitByJobIdResponses,
-  PostApiV2ServerDumpFdmMonsterLogsData,
-  PostApiV2ServerDumpFdmMonsterLogsResponses,
+  PostApiV2ServerDumpPrusaHeroLogsData,
+  PostApiV2ServerDumpPrusaHeroLogsResponses,
   PostApiV2ServerUpdateClientBundleGithubData,
   PostApiV2ServerUpdateClientBundleGithubResponses,
   PostApiV2ServerYamlExportData,
@@ -2242,21 +2242,21 @@ export class ServerPrivateController {
   /**
    * clearLogs
    */
-  public static deleteApiV2ServerClearOutdatedFdmMonsterLogs<
+  public static deleteApiV2ServerClearOutdatedPrusaHeroLogs<
     ThrowOnError extends boolean = false
   >(
     options?: Options<
-      DeleteApiV2ServerClearOutdatedFdmMonsterLogsData,
+      DeleteApiV2ServerClearOutdatedPrusaHeroLogsData,
       ThrowOnError
     >
   ) {
     return (options?.client ?? client).delete<
-      DeleteApiV2ServerClearOutdatedFdmMonsterLogsResponses,
+      DeleteApiV2ServerClearOutdatedPrusaHeroLogsResponses,
       unknown,
       ThrowOnError
     >({
       security: [{ scheme: 'bearer', type: 'http' }],
-      url: '/api/v2/server/clear-outdated-fdm-monster-logs',
+      url: '/api/v2/server/clear-outdated-prusahero-logs',
       ...options
     })
   }
@@ -2264,16 +2264,16 @@ export class ServerPrivateController {
   /**
    * dumpLogZips
    */
-  public static getApiV2ServerDumpFdmMonsterLogs<
+  public static getApiV2ServerDumpPrusaHeroLogs<
     ThrowOnError extends boolean = false
-  >(options?: Options<GetApiV2ServerDumpFdmMonsterLogsData, ThrowOnError>) {
+  >(options?: Options<GetApiV2ServerDumpPrusaHeroLogsData, ThrowOnError>) {
     return (options?.client ?? client).get<
-      GetApiV2ServerDumpFdmMonsterLogsResponses,
+      GetApiV2ServerDumpPrusaHeroLogsResponses,
       unknown,
       ThrowOnError
     >({
       security: [{ scheme: 'bearer', type: 'http' }],
-      url: '/api/v2/server/dump-fdm-monster-logs',
+      url: '/api/v2/server/dump-prusahero-logs',
       ...options
     })
   }
@@ -2281,16 +2281,16 @@ export class ServerPrivateController {
   /**
    * dumpLogZips
    */
-  public static postApiV2ServerDumpFdmMonsterLogs<
+  public static postApiV2ServerDumpPrusaHeroLogs<
     ThrowOnError extends boolean = false
-  >(options?: Options<PostApiV2ServerDumpFdmMonsterLogsData, ThrowOnError>) {
+  >(options?: Options<PostApiV2ServerDumpPrusaHeroLogsData, ThrowOnError>) {
     return (options?.client ?? client).post<
-      PostApiV2ServerDumpFdmMonsterLogsResponses,
+      PostApiV2ServerDumpPrusaHeroLogsResponses,
       unknown,
       ThrowOnError
     >({
       security: [{ scheme: 'bearer', type: 'http' }],
-      url: '/api/v2/server/dump-fdm-monster-logs',
+      url: '/api/v2/server/dump-prusahero-logs',
       ...options
     })
   }

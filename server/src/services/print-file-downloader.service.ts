@@ -97,7 +97,7 @@ export class PrintFileDownloaderService {
       this.logger.log(`Downloaded ${fileBuffer.length} bytes for job ${jobId}`);
 
       // Create temporary file
-      const tempPath = join(tmpdir(), `fdm-monster-download-${jobId}-${Date.now()}-${job.fileName}`);
+      const tempPath = join(tmpdir(), `prusahero-download-${jobId}-${Date.now()}-${job.fileName}`);
       writeFileSync(tempPath, fileBuffer);
 
       try {

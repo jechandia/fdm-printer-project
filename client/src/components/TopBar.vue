@@ -11,8 +11,8 @@
       class="topbar__brand d-none d-md-flex"
       aria-label="Home"
     >
-      <span class="topbar__brand-light">FDM</span>
-      <span class="topbar__brand-strong">Monster</span>
+      <span class="topbar__brand-light">Prusa</span>
+      <span class="topbar__brand-strong">Hero</span>
     </router-link>
 
     <!-- Dev / env badge -->

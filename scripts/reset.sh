@@ -17,7 +17,7 @@ if [ "$confirm" != "reset" ]; then
 fi
 
 if pgrep -f "node dist/index.js" > /dev/null 2>&1; then
-  echo "⚠️  fdm-monster server is running — stop it before resetting." >&2
+  echo "⚠️  prusahero server is running — stop it before resetting." >&2
   exit 1
 fi
 

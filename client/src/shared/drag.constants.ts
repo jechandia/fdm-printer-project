@@ -1,4 +1,4 @@
-export const dragAppId = 'FDM-Monster-Client-Vue2'
+export const dragAppId = 'PrusaHero-Client'
 
 export const DRAG_EVENTS = {
   TILE_DRAG_START: 'tile-drag-start'

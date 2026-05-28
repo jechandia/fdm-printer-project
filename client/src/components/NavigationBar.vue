@@ -10,7 +10,7 @@
       aria-label="Home"
     >
       <v-img
-        alt="FDM Monster Logo"
+        alt="PrusaHero Logo"
         :src="imgLogo"
         class="nav-logo__img"
         transition="scale-transition"

@@ -146,7 +146,7 @@ export class ServerPrivateController {
   }
 
   @DELETE()
-  @route("/clear-outdated-fdm-monster-logs")
+  @route("/clear-outdated-prusahero-logs")
   async clearLogs(req: Request, res: Response) {
     const counts = await this.logDumpService.deleteOlderThanWeekAndMismatchingLogFiles();
     res.send(counts);
@@ -154,7 +154,7 @@ export class ServerPrivateController {
 
   @GET()
   @POST()
-  @route("/dump-fdm-monster-logs")
+  @route("/dump-prusahero-logs")
   async dumpLogZips(req: Request, res: Response) {
     const filePath = await this.logDumpService.dumpZip();
     res.sendFile(filePath);

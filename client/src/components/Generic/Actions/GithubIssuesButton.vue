@@ -1,7 +1,7 @@
 <template>
   <v-btn
     v-bind="$attrs"
-    href="https://github.com/fdm-monster/fdm-monster/issues"
+    href="https://github.com/jechandia/prusahero/issues"
     target="_blank"
     :color="color"
     :variant="variant"
