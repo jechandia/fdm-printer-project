@@ -17,6 +17,7 @@
     "dev:client": "yarn workspace @fdm-monster/client-next dev",
     "backup": "./scripts/backup.sh",
     "restore": "./scripts/restore.sh",
-    "reset": "./scripts/reset.sh"
+    "reset": "./scripts/reset.sh",
+    "doctor": "./scripts/doctor.sh"
   }
 }
