@@ -22,11 +22,17 @@ export const printerResolveMiddleware = (key = "id") => {
       scopedPrinter = printerCache.getCachedPrinterOrThrow(printerId);
       loginDto = printerCache.getLoginDto(printerId);
 
-      const prusaLinkInstance = req.container.resolve<PrusaLinkApi>(DITokens.prusaLinkApi);
+      // Register printerLogin BEFORE resolving PrusaLinkApi — the adapter
+      // injects printerLogin via the request scope, and resolving it earlier
+      // would bind it to the container-level `asValue(null)` fallback.
       req.container.register({
         [currentPrinterToken]: asValue(scopedPrinter),
         [printerLoginToken]: asValue(loginDto),
         [printerIdToken]: asValue(printerId),
+      });
+
+      const prusaLinkInstance = req.container.resolve<PrusaLinkApi>(DITokens.prusaLinkApi);
+      req.container.register({
         [printerApiToken]: asValue(prusaLinkInstance),
       });
     } else {
