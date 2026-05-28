@@ -12,7 +12,9 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, linux]
+    runs-on:
+      group: 3D-Printers
+      labels: [self-hosted, linux]
     env:
       DEPLOY_DIR: /opt/prusahero
     steps:
