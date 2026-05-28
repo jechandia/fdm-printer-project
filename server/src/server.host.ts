@@ -71,13 +71,14 @@ export class ServerHost {
     }
 
     const bundleDistPath = join(getMediaPath(), AppConstants.defaultClientBundleStorage, "dist");
-    const backupClientPath = join(superRootPath(), "node_modules", AppConstants.clientPackageName, "dist");
+    // Monorepo sibling: server/ and client/ live side-by-side. superRootPath()
+    // resolves to server/, so ../client/dist is the freshly-built client bundle.
+    const siblingClientPath = join(superRootPath(), "..", "client", "dist");
 
-    // Serve the main bundle
+    // Serve the main bundle (operator-supplied override under media/), then the
+    // workspace client as the always-available fallback.
     app.use(express.static(bundleDistPath));
-
-    // Serve the backup client
-    app.use(express.static(backupClientPath));
+    app.use(express.static(siblingClientPath));
 
     app.get("*", (req, _) => {
       const path = req.originalUrl;

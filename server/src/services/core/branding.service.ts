@@ -183,7 +183,8 @@ export class BrandingService {
   private getBundleDirs(): string[] {
     return [
       join(getMediaPath(), AppConstants.defaultClientBundleStorage, "dist"),
-      join(superRootPath(), "node_modules", AppConstants.clientPackageName, "dist"),
+      // Monorepo sibling — superRootPath() is server/, ../client/dist is the workspace client.
+      join(superRootPath(), "..", "client", "dist"),
     ];
   }
 }
