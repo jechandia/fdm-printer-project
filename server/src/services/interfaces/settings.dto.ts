@@ -16,9 +16,6 @@ export interface ServerSettingsDto {
   sentryDiagnosticsEnabled: boolean;
   registration: boolean;
   loginRequired: boolean;
-  experimentalMoonrakerSupport: boolean;
-  experimentalBambuSupport: boolean;
-  experimentalPrusaLinkSupport: boolean;
 }
 
 export type WizardSettingsDto = z.infer<typeof wizardUpdateSchema>;

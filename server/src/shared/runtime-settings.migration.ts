@@ -58,12 +58,6 @@ export function migrateSettingsRuntime(knownSettings: Partial<Settings>): Settin
     entity[serverSettingsKey] = {
       loginRequired: entity[serverSettingsKey].loginRequired ?? defaultServerSettings.loginRequired,
       registration: entity[serverSettingsKey].registration ?? defaultServerSettings.registration,
-      experimentalMoonrakerSupport:
-        entity[serverSettingsKey].experimentalMoonrakerSupport ?? defaultServerSettings.experimentalMoonrakerSupport,
-      experimentalPrusaLinkSupport:
-        entity[serverSettingsKey].experimentalPrusaLinkSupport ?? defaultServerSettings.experimentalPrusaLinkSupport,
-      experimentalBambuSupport:
-        entity[serverSettingsKey].experimentalBambuSupport ?? defaultServerSettings.experimentalBambuSupport,
       sentryDiagnosticsEnabled:
         entity[serverSettingsKey].sentryDiagnosticsEnabled ?? defaultServerSettings.sentryDiagnosticsEnabled,
     };

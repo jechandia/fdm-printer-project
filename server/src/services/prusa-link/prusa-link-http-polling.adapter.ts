@@ -11,7 +11,7 @@ import { API_STATE, ApiState } from "@/shared/dtos/api-state.type";
 import { errorSummary } from "@/utils/error.utils";
 import { prusaLinkEvent } from "@/services/prusa-link/constants/prusalink.constants";
 import type { PrusaLinkEventDto } from "@/services/prusa-link/constants/prusalink-event.dto";
-import { WsMessage } from "@/services/octoprint/octoprint-websocket.adapter";
+import { WsMessage } from "@/shared/ws-message.constants";
 import { AppConstants } from "@/server.constants";
 
 const defaultLog = { adapter: "prusa-link" };

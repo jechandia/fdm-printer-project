@@ -1,9 +1,6 @@
 import { AxiosPromise } from "axios";
 import type { LoginDto } from "@/services/interfaces/login.dto";
-import type { ServerConfigDto } from "@/services/moonraker/dto/server/server-config.dto";
-import type { SettingsDto } from "@/services/octoprint/dto/settings/settings.dto";
-import { ConnectionState } from "@/services/octoprint/dto/connection/connection-state.type";
-import { Flags } from "@/services/moonraker/dto/octoprint-compat/api-printer.dto";
+import { ConnectionState } from "@/services/interfaces/printer-connection-state.type";
 import { z } from "zod";
 import { Readable } from "node:stream";
 
@@ -29,37 +26,13 @@ export const uploadFileInputSchema = z.object({
 
 export type UploadFileInput = z.infer<typeof uploadFileInputSchema>;
 
-export const OctoprintType = 0;
-export const MoonrakerType = 1;
 export const PrusaLinkType = 2;
-export const BambuType = 3;
 
 export enum PrinterTypesEnum {
-  Octoprint = 0,
-  Moonraker = 1,
   PrusaLink = 2,
-  Bambu = 3,
 }
 
-export type PrinterType = typeof OctoprintType | typeof MoonrakerType | typeof PrusaLinkType | typeof BambuType;
-
-export interface FdmCurrentMessageDto {
-  progress: {
-    printTime: number | null;
-    completion: number | null;
-  };
-  state: {
-    text: string;
-    error: string;
-    flags: Flags;
-  };
-  job: {
-    file: {
-      name: string;
-      path: string;
-    };
-  };
-}
+export type PrinterType = typeof PrusaLinkType;
 
 export interface StatusFlags {
   connected: boolean;
@@ -179,7 +152,7 @@ export interface IPrinterApi {
    */
   getFileThumbnail?(path: string, variant?: "small" | "big"): AxiosPromise<NodeJS.ReadableStream>;
 
-  getSettings(): Promise<ServerConfigDto | SettingsDto>;
+  getSettings(): Promise<unknown>;
 
   getReprintState(): Promise<PartialReprintFileDto>;
 }

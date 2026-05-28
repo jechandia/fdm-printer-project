@@ -14,8 +14,6 @@ import {
 import { AxiosError, AxiosPromise } from "axios";
 import FormData from "form-data";
 import type { LoginDto } from "../interfaces/login.dto";
-import type { ServerConfigDto } from "../moonraker/dto/server/server-config.dto";
-import type { SettingsDto } from "../octoprint/dto/settings/settings.dto";
 import { PrusaLinkHttpClientBuilder } from "@/services/prusa-link/utils/prusa-link-http-client.builder";
 import type { VersionDto } from "@/services/prusa-link/dto/version.dto";
 import type { PL_StatusDto, PL_StorageDto } from "@/services/prusa-link/dto/status.dto";
@@ -836,7 +834,7 @@ export class PrusaLinkApi implements IPrinterApi {
     }).put<void>(`/api/v1/files/${storage}/${targetEncoded}`);
   }
 
-  getSettings(): Promise<ServerConfigDto | SettingsDto> {
+  getSettings(): Promise<unknown> {
     return this.rejectUnsupported(
       "PrusaLink doesn't expose a settings document; check the printer's front panel instead.",
     );

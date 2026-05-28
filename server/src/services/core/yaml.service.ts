@@ -13,7 +13,7 @@ import type { ILoggerFactory } from "@/handlers/logger-factory";
 import type { IPrinterService } from "@/services/interfaces/printer.service.interface";
 import type { IFloorService } from "@/services/interfaces/floor.service.interface";
 import type { IPrinterTagService } from "@/services/interfaces/printer-tag.service.interface";
-import { BambuType, MoonrakerType, OctoprintType, PrusaLinkType } from "@/services/printer-api.interface";
+import { PrusaLinkType } from "@/services/printer-api.interface";
 import { z } from "zod";
 import type { IUserService } from "@/services/interfaces/user-service.interface";
 import type { IRoleService } from "@/services/interfaces/role-service.interface";
@@ -636,9 +636,10 @@ export class YamlService {
         printer.id = Number.parseInt(printer.id);
       }
 
-      // 1.7 backwards compatibility
-      if (![OctoprintType, MoonrakerType, PrusaLinkType, BambuType].includes(printer.printerType)) {
-        printer.printerType = OctoprintType;
+      // The fork only supports PrusaLink — coerce anything else into PrusaLink
+      // so legacy exports (1.7-era OctoPrint/Moonraker/Bambu rows) still import.
+      if (printer.printerType !== PrusaLinkType) {
+        printer.printerType = PrusaLinkType;
       }
     }
 

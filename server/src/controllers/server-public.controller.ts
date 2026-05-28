@@ -42,21 +42,12 @@ export class ServerPublicController {
   @route("/features")
   @before([authenticate()])
   getFeatures(req: Request, res: Response) {
-    const serverSettings = this.settingsStore.getServerSettings();
-    const moonrakerEnabled = serverSettings.experimentalMoonrakerSupport;
-    const prusaLinkEnabled = serverSettings.experimentalPrusaLinkSupport;
-    const bambuEnabled = serverSettings.experimentalBambuSupport;
     res.send({
       multiplePrinterServices: {
         available: true,
         version: 1,
         subFeatures: {
-          types: [
-            "octoprint",
-            ...(moonrakerEnabled ? ["klipper"] : []),
-            ...(prusaLinkEnabled ? ["prusaLink"] : []),
-            ...(bambuEnabled ? ["bambu"] : []),
-          ],
+          types: ["prusaLink"],
         },
       },
     });

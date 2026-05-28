@@ -10,10 +10,8 @@ import {
 import EventEmitter2 from "eventemitter2";
 import { SocketFactory } from "@/services/socket.factory";
 import { PrinterCache } from "@/state/printer.cache";
-import { OctoprintWebsocketAdapter } from "@/services/octoprint/octoprint-websocket.adapter";
 import { LoggerService } from "@/handlers/logger";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
-import { OctoprintType } from "@/services/printer-api.interface";
 import type { IWebsocketAdapter } from "@/services/websocket-adapter.interface";
 import type { PrinterDto } from "@/services/interfaces/printer.dto";
 import { SocketState } from "@/shared/dtos/socket-state.type";
@@ -97,26 +95,9 @@ export class PrinterSocketStore {
    * Sets up the new WebSocket connections for all printers
    */
   async reconnectPrinterSockets(): Promise<void> {
-    let reauthRequested = 0;
     let socketSetupRequested = 0;
     const socketStates: { [k: string]: number } = {};
     const apiStates: { [k: string]: number } = {};
-    const promisesReauth = [];
-    for (const socket of this.printerSocketAdaptersById.values()) {
-      try {
-        if (socket.printerType === OctoprintType && (socket as OctoprintWebsocketAdapter).needsReauth()) {
-          reauthRequested++;
-          // TODO OP close socket
-          const promise = socket.reauthSession().catch();
-          // TODO MR reconnect
-          promisesReauth.push(promise);
-        }
-      } catch (e) {
-        captureException(e);
-      }
-    }
-
-    await Promise.all(promisesReauth);
 
     const promisesOpenSocket: any[] = [];
     for (const socket of this.printerSocketAdaptersById.values()) {

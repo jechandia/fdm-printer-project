@@ -1,12 +1,5 @@
-import { apiKeyLengthMaxDefault, apiKeyLengthMinDefault } from "@/constants/service.constants";
-import { OctoprintType, PrinterTypesEnum, PrusaLinkType, BambuType } from "@/services/printer-api.interface";
+import { PrinterTypesEnum } from "@/services/printer-api.interface";
 import { RefinementCtx, z } from "zod";
-
-const octoPrintApiKeySchema = z
-  .string()
-  .min(apiKeyLengthMinDefault)
-  .max(apiKeyLengthMaxDefault)
-  .regex(/^[a-zA-Z0-9_-]+$/, "Alpha-numeric, dash, and underscore only");
 
 export const printerApiKeyValidator = z.string().optional();
 export const printerNameValidator = z.string();
@@ -46,37 +39,22 @@ const apiKeyPrinterTypeSchema = z.object({
 type ApiKeyPrinterTypeSchema = z.infer<typeof apiKeyPrinterTypeSchema>;
 
 export const refineApiKeyValidator = <T extends ApiKeyPrinterTypeSchema>(data: T, ctx: RefinementCtx) => {
-  // OctoPrint apiKey constraints
-  if (data.printerType === OctoprintType) {
-    const result = octoPrintApiKeySchema.safeParse(data.apiKey);
-    if (!result.success) {
-      result.error.issues.forEach((issue) => {
-        ctx.addIssue({
-          ...issue,
-          // Nesting misses path under "apiKey"
-          path: ["apiKey", ...issue.path],
-        });
+  // PrusaLink requires username/password (HTTP digest auth).
+  const result = prusaLinkAuthSchema.safeParse({
+    username: data.username,
+    password: data.password,
+  });
+  if (!result.success) {
+    result.error.issues.forEach((issue) => {
+      ctx.addIssue({
+        ...issue,
+        path: ["username", ...issue.path],
       });
-    }
-  } else if (data.printerType === PrusaLinkType || data.printerType === BambuType) {
-    const result = prusaLinkAuthSchema.safeParse({
-      username: data.username,
-      password: data.password,
+      ctx.addIssue({
+        ...issue,
+        path: ["password", ...issue.path],
+      });
     });
-    if (!result.success) {
-      result.error.issues.forEach((issue) => {
-        ctx.addIssue({
-          ...issue,
-          // Nesting misses path under "username"
-          path: ["username", ...issue.path],
-        });
-        ctx.addIssue({
-          ...issue,
-          // Nesting misses path under "password"
-          path: ["password", ...issue.path],
-        });
-      });
-    }
   }
 };
 

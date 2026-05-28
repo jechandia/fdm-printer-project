@@ -6,11 +6,8 @@ import { validateInput } from "@/handlers/validators";
 import {
   credentialCoreSettingUpdateSchema,
   frontendSettingsUpdateSchema,
-  moonrakerSupportSchema,
-  prusaLinkSupportSchema,
   sentryDiagnosticsEnabledSchema,
   timeoutSettingsUpdateSchema,
-  bambuSupportSchema,
 } from "@/services/validators/settings-service.validation";
 import { SettingsStore } from "@/state/settings.store";
 import type { Request, Response } from "express";
@@ -18,7 +15,6 @@ import type { ILoggerFactory } from "@/handlers/logger-factory";
 import { LoggerService } from "@/handlers/logger";
 import { demoUserNotAllowed } from "@/middleware/demo.middleware";
 import { PrinterCache } from "@/state/printer.cache";
-import { BambuType, PrusaLinkType, MoonrakerType } from "@/services/printer-api.interface";
 import type { IPrinterService } from "@/services/interfaces/printer.service.interface";
 import { PrinterThumbnailCache } from "@/state/printer-thumbnail.cache";
 import { loginRequiredSchema, registrationEnabledSchema } from "@/controllers/validation/setting.validation";
@@ -69,56 +65,6 @@ export class SettingsController {
   async updateSentryDiagnosticsEnabled(req: Request, res: Response) {
     const { enabled } = await validateInput(req.body, sentryDiagnosticsEnabledSchema);
     const result = this.settingsStore.setSentryDiagnosticsEnabled(enabled);
-    res.send(result);
-  }
-
-  @PUT()
-  @route("/experimental-moonraker-support")
-  @before([authorizeRoles([ROLES.ADMIN]), demoUserNotAllowed])
-  async updateMoonrakerSupport(req: Request, res: Response) {
-    const { enabled } = await validateInput(req.body, moonrakerSupportSchema);
-    const result = await this.settingsStore.setExperimentalMoonrakerSupport(enabled);
-
-    if (!enabled) {
-      const printers = await this.printerCache.listCachedPrinters(false);
-      const klipperPrinters = printers.filter((p) => p.printerType === MoonrakerType);
-      for (const printer of klipperPrinters) {
-        await this.printerService.updateEnabled(printer.id, false);
-      }
-    }
-    res.send(result);
-  }
-
-  @PUT()
-  @route("/experimental-prusa-link-support")
-  @before([authorizeRoles([ROLES.ADMIN]), demoUserNotAllowed])
-  async updatePrusaLinkSupport(req: Request, res: Response) {
-    const { enabled } = await validateInput(req.body, prusaLinkSupportSchema);
-    const result = await this.settingsStore.setExperimentalPrusaLinkSupport(enabled);
-
-    if (!enabled) {
-      const printers = await this.printerCache.listCachedPrinters(false);
-      const prusaLinkPrinters = printers.filter((p) => p.printerType === PrusaLinkType);
-      for (const printer of prusaLinkPrinters) {
-        await this.printerService.updateEnabled(printer.id, false);
-      }
-    }
-    res.send(result);
-  }
-
-  @PUT()
-  @route("/experimental-bambu-support")
-  async updateBambuSupport(req: Request, res: Response) {
-    const { enabled } = await validateInput(req.body, bambuSupportSchema);
-    const result = await this.settingsStore.setExperimentalBambuSupport(enabled);
-
-    if (!enabled) {
-      const printers = await this.printerCache.listCachedPrinters(false);
-      const bambuPrinters = printers.filter((p) => p.printerType === BambuType);
-      for (const printer of bambuPrinters) {
-        await this.printerService.updateEnabled(printer.id, false);
-      }
-    }
     res.send(result);
   }
 

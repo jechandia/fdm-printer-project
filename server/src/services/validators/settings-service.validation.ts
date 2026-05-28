@@ -4,9 +4,6 @@ import { z } from "zod";
 export const serverSettingsUpdateSchema = z.object({
   registration: z.boolean(),
   loginRequired: z.boolean(),
-  experimentalMoonrakerSupport: z.boolean(),
-  experimentalBambuSupport: z.boolean(),
-  experimentalPrusaLinkSupport: z.boolean(),
   sentryDiagnosticsEnabled: z.boolean(),
 });
 
@@ -65,17 +62,5 @@ export const wizardUpdateSchema = z.object({
 });
 
 export const sentryDiagnosticsEnabledSchema = z.object({
-  enabled: z.boolean(),
-});
-
-export const moonrakerSupportSchema = z.object({
-  enabled: z.boolean(),
-});
-
-export const prusaLinkSupportSchema = z.object({
-  enabled: z.boolean(),
-});
-
-export const bambuSupportSchema = z.object({
   enabled: z.boolean(),
 });

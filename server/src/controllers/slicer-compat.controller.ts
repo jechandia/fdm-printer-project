@@ -58,7 +58,7 @@ export class SlicerCompatController {
       // Accept all common 3D printer file formats
       const acceptedExtensions = [
         ...AppConstants.defaultAcceptedGcodeExtensions,
-        ...AppConstants.defaultAcceptedBambuExtensions,
+        ...AppConstants.defaultAccepted3mfExtensions,
       ];
 
       // Load uploaded file using multer

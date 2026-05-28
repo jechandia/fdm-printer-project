@@ -22,7 +22,6 @@ import { UserService } from "./services/orm/user.service";
 import { RoleService } from "./services/orm/role.service";
 import { PermissionService } from "./services/orm/permission.service";
 import { ROLES } from "./constants/authorization.constants";
-import { PrinterWebsocketRestoreTask } from "./tasks/printer-websocket-restore.task";
 import { ConfigService, type IConfigService } from "./services/core/config.service";
 import { SocketIoGateway } from "./state/socket-io.gateway";
 import { ClientBundleService } from "./services/core/client-bundle.service";
@@ -31,7 +30,6 @@ import { FloorStore } from "./state/floor.store";
 import { YamlService } from "./services/core/yaml.service";
 import { MonsterPiService } from "./services/core/monsterpi.service";
 import { BatchCallService } from "./services/core/batch-call.service";
-import { OctoprintWebsocketAdapter } from "./services/octoprint/octoprint-websocket.adapter";
 import { PrinterCache } from "./state/printer.cache";
 import { PrinterSocketStore } from "./state/printer-socket.store";
 import { TestPrinterSocketStore } from "./state/test-printer-socket.store";
@@ -49,21 +47,12 @@ import { ExceptionFilter } from "@/middleware/exception.filter";
 import { TypeormService } from "@/services/typeorm/typeorm.service";
 import { UserRoleService } from "@/services/orm/user-role.service";
 import { PrinterTagService } from "@/services/orm/printer-tag.service";
-import { MoonrakerClient } from "@/services/moonraker/moonraker.client";
-import { MoonrakerWebsocketAdapter } from "@/services/moonraker/moonraker-websocket.adapter";
-import { OctoprintApi } from "@/services/octoprint.api";
-import { OctoprintClient } from "@/services/octoprint/octoprint.client";
-import { MoonrakerApi } from "@/services/moonraker.api";
 import { PrinterApiFactory } from "@/services/printer-api.factory";
 import { PrinterThumbnailCache } from "@/state/printer-thumbnail.cache";
 import { HttpClientFactory } from "@/services/core/http-client.factory";
 import { CradleService } from "@/services/core/cradle.service";
 import { PrusaLinkApi } from "@/services/prusa-link/prusa-link.api";
 import { PrusaLinkHttpPollingAdapter } from "@/services/prusa-link/prusa-link-http-polling.adapter";
-import { BambuClient } from "@/services/bambu/bambu.client";
-import { BambuMqttAdapter } from "@/services/bambu/bambu-mqtt.adapter";
-import { BambuFtpAdapter } from "@/services/bambu/bambu-ftp.adapter";
-import { BambuApi } from "@/services/bambu.api";
 import { PrintQueueService } from "@/services/print-queue.service";
 import { FileStorageService } from "@/services/file-storage.service";
 import { FileStorageFolderService } from "@/services/file-storage-folder.service";
@@ -147,16 +136,6 @@ export function configureContainer() {
     [di.printerApiFactory]: asClass(PrinterApiFactory).transient(), // Factory function, transient on purpose!
     [di.prusaLinkApi]: asClass(PrusaLinkApi).transient(), // Transient on purpose
     [di.prusaLinkPollingAdapter]: asClass(PrusaLinkHttpPollingAdapter).transient(), // Transient on purpose
-    [di.octoprintApi]: asClass(OctoprintApi).transient(), // Transient on purpose
-    [di.octoprintClient]: asClass(OctoprintClient).singleton(),
-    [di.octoPrintSockIoAdapter]: asClass(OctoprintWebsocketAdapter).transient(), // Transient on purpose
-    [di.moonrakerApi]: asClass(MoonrakerApi).transient(), // Transient on purpose
-    [di.moonrakerClient]: asClass(MoonrakerClient).singleton(),
-    [di.moonrakerWebsocketAdapter]: asClass(MoonrakerWebsocketAdapter).transient(), // Transient on purpose
-    [di.bambuApi]: asClass(BambuApi).transient(),
-    [di.bambuClient]: asClass(BambuClient).transient(), // Transient for multi-printer support
-    [di.bambuFtpAdapter]: asClass(BambuFtpAdapter).transient(),
-    [di.bambuMqttAdapter]: asClass(BambuMqttAdapter).transient(),
     [di.batchCallService]: asClass(BatchCallService).singleton(),
 
     [di.floorStore]: asClass(FloorStore).singleton(),
@@ -177,7 +156,6 @@ export function configureContainer() {
     [di.bootTask]: asClass(BootTask),
     [di.socketIoTask]: asClass(SocketIoTask).singleton(), // This task is a quick task (~100ms per printer)
     [di.printerWebsocketTask]: asClass(PrinterWebsocketTask).singleton(), // This task is a recurring heartbeat task
-    [di.printerWebsocketRestoreTask]: asClass(PrinterWebsocketRestoreTask).singleton(), // Task aimed at testing the printer API
     [di.printJobAnalysisTask]: asClass(PrintJobAnalysisTask).singleton(),
   });
 

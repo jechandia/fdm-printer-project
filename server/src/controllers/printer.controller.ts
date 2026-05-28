@@ -305,7 +305,6 @@ export class PrinterController {
   }
 
   @POST()
-  @route("/:id/octoprint/server/restart")
   @route("/:id/server/restart")
   async restartServer(req: Request, res: Response) {
     await this.printerApi.restartServer();

@@ -17,9 +17,6 @@ export class Settings {
     sentryDiagnosticsEnabled: boolean;
     loginRequired: boolean;
     registration: boolean;
-    experimentalMoonrakerSupport: boolean;
-    experimentalBambuSupport: boolean;
-    experimentalPrusaLinkSupport: boolean;
   };
 
   @Column({ type: "simple-json", nullable: false })

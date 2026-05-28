@@ -1,3 +1,6 @@
+// State of the printer's serial/connection layer. The string union is the
+// OctoPrint vocabulary the codebase has used since day one — kept here as a
+// neutral shared type now that the OctoPrint adapter has been stripped.
 export const connectionStates = {
   Operational: "Operational",
   Printing: "Printing",

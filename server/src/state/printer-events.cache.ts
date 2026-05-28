@@ -1,21 +1,27 @@
 import { KeyDiffCache } from "@/utils/cache/key-diff.cache";
 import { printerEvents, PrintersDeletedEvent } from "@/constants/event.constants";
 import EventEmitter2 from "eventemitter2";
-import { WsMessage, messages, type OctoPrintEventDto } from "@/services/octoprint/dto/octoprint-event.dto";
-import { MR_WsMessage, type MoonrakerEventDto } from "@/services/moonraker/constants/moonraker-event.dto";
-import type { PrinterObjectsQueryDto } from "@/services/moonraker/dto/objects/printer-objects-query.dto";
-import { SubscriptionType } from "@/services/moonraker/moonraker-websocket.adapter";
-import { octoPrintEvent } from "@/services/octoprint/octoprint-websocket.adapter";
-import { moonrakerEvent } from "@/services/moonraker/constants/moonraker.constants";
+import {
+  WsMessage,
+  messages,
+  octoPrintEvent,
+  moonrakerEvent,
+  bambuEvent,
+  type OctoPrintEventDto,
+  type MoonrakerEventDto,
+  type BambuEventDto,
+  type CurrentMessageDto,
+  type PrinterObjectsQueryDto,
+  type SubscriptionType,
+  type MR_WsMessage,
+} from "@/services/_legacy-vendor-stubs";
 import { prusaLinkEvent } from "@/services/prusa-link/constants/prusalink.constants";
 import type { PrusaLinkEventDto } from "@/services/prusa-link/constants/prusalink-event.dto";
-import { bambuEvent, type BambuEventDto } from "@/services/bambu/bambu-mqtt.adapter";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
 import { LoggerService } from "@/handlers/logger";
 import { PrintJobService } from "@/services/orm/print-job.service";
 import { PrinterCache } from "@/state/printer.cache";
 import { PrinterThumbnailCache } from "@/state/printer-thumbnail.cache";
-import type { CurrentMessageDto } from "@/services/octoprint/dto/websocket/current-message.dto";
 
 export type WsMessageWithoutEventAndPlugin = Exclude<WsMessage, "event" | "plugin">;
 export type PrinterEventsCacheDto = Record<WsMessageWithoutEventAndPlugin, any>;

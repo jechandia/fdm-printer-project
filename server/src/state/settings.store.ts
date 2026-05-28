@@ -45,9 +45,6 @@ export class SettingsStore {
         loginRequired: settings[serverSettingsKey].loginRequired,
         registration: settings[serverSettingsKey].registration,
         sentryDiagnosticsEnabled: settings[serverSettingsKey].sentryDiagnosticsEnabled,
-        experimentalMoonrakerSupport: settings[serverSettingsKey].experimentalMoonrakerSupport,
-        experimentalPrusaLinkSupport: settings[serverSettingsKey].experimentalPrusaLinkSupport,
-        experimentalBambuSupport: settings[serverSettingsKey].experimentalBambuSupport,
       },
       [wizardSettingKey]: settings[wizardSettingKey],
       [frontendSettingKey]: settings[frontendSettingKey],
@@ -70,9 +67,6 @@ export class SettingsStore {
         loginRequired: settings[serverSettingsKey].loginRequired,
         registration: settings[serverSettingsKey].registration,
         sentryDiagnosticsEnabled: settings[serverSettingsKey].sentryDiagnosticsEnabled,
-        experimentalMoonrakerSupport: settings[serverSettingsKey].experimentalMoonrakerSupport,
-        experimentalPrusaLinkSupport: settings[serverSettingsKey].experimentalPrusaLinkSupport,
-        experimentalBambuSupport: settings[serverSettingsKey].experimentalBambuSupport,
       },
     });
   }
@@ -216,28 +210,6 @@ export class SettingsStore {
     this.settings![serverSettingsKey].sentryDiagnosticsEnabled = sentryDiagnosticsEnabled;
     this.settings = await this.settingsService.updateServerSettings(this.settings![serverSettingsKey]);
     await this.processSentryEnabled();
-    return this.getSettings();
-  }
-
-  async setExperimentalMoonrakerSupport(experimentalMoonrakerSupport: boolean) {
-    this.throwIfSettingsUnset();
-    this.settings![serverSettingsKey].experimentalMoonrakerSupport = experimentalMoonrakerSupport;
-    this.settings = await this.settingsService.updateServerSettings(this.settings![serverSettingsKey]);
-    return this.getSettings();
-  }
-
-  async setExperimentalPrusaLinkSupport(experimentalPrusaLinkSupport: boolean) {
-    this.throwIfSettingsUnset();
-    this.settings![serverSettingsKey].experimentalPrusaLinkSupport = experimentalPrusaLinkSupport;
-    this.settings = await this.settingsService.updateServerSettings(this.settings![serverSettingsKey]);
-
-    return this.getSettings();
-  }
-
-  async setExperimentalBambuSupport(experimentalBambuSupport: boolean) {
-    this.throwIfSettingsUnset();
-    this.settings![serverSettingsKey].experimentalBambuSupport = experimentalBambuSupport;
-    this.settings = await this.settingsService.updateServerSettings(this.settings![serverSettingsKey]);
     return this.getSettings();
   }
 

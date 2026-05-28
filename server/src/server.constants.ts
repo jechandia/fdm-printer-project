@@ -21,7 +21,9 @@ export const AppConstants = {
   defaultFileUploadsStorage: "file-uploads",
   defaultPrintFilesStorage: "files",
   defaultAcceptedGcodeExtensions: [".gcode", ".bgcode"],
-  defaultAcceptedBambuExtensions: [".3mf"],
+  // 3MF is the PrusaSlicer / BambuStudio container format. Accepted by the
+  // slicer-compat upload endpoint but not by PrusaLink printers directly.
+  defaultAccepted3mfExtensions: [".3mf"],
   defaultServerPort: 4000,
   apiRoute: "/api/v2",
   enableClientDistAutoUpdateKey: "ENABLE_CLIENT_DIST_AUTO_UPDATE",

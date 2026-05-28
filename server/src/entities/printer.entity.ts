@@ -1,7 +1,7 @@
 import { IsAlphanumeric } from "class-validator";
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, type Relation } from "typeorm";
 import { PrinterTag } from "@/entities/printer-tag.entity";
-import { OctoprintType } from "@/services/printer-api.interface";
+import { PrusaLinkType } from "@/services/printer-api.interface";
 
 @Entity()
 export class Printer {
@@ -14,7 +14,7 @@ export class Printer {
   @Column()
   printerURL: string;
 
-  @Column({ default: OctoprintType, nullable: false })
+  @Column({ default: PrusaLinkType, nullable: false })
   printerType: number;
 
   @Column({ default: "", nullable: true })

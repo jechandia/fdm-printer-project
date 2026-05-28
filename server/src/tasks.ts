@@ -22,8 +22,6 @@ export class ServerTasks {
     registerTask(DITokens.socketIoTask, TaskPresets.PERIODIC, 500),
     // Every 2 seconds
     registerTask(DITokens.printerWebsocketTask, TaskPresets.PERIODIC, 2000, true),
-    // Every 15 seconds
-    registerTask(DITokens.printerWebsocketRestoreTask, TaskPresets.PERIODIC, 15 * 1000, false),
     // Analyze pending print jobs every 30 seconds
     registerTask(DITokens.printJobAnalysisTask, TaskPresets.PERIODIC, 30 * 1000, false),
   ];

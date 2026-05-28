@@ -17,7 +17,7 @@ import { MulterService } from "@/services/core/multer.service";
 import { LoggerService } from "@/handlers/logger";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
 import type { Request, Response } from "express";
-import { BambuType, type IPrinterApi, type PrinterType, PrusaLinkType } from "@/services/printer-api.interface";
+import { type IPrinterApi, type PrinterType, PrusaLinkType } from "@/services/printer-api.interface";
 import { PrinterThumbnailCache } from "@/state/printer-thumbnail.cache";
 import { PrinterFirmwareCache } from "@/state/printer-firmware.cache";
 import { captureException } from "@sentry/node";
@@ -406,17 +406,8 @@ export class PrinterFilesController {
     res.send();
   }
 
-  private getAcceptedFileExtensions(printerType: number): string[] {
-    // Bambu accepts only .3mf
-    if (printerType === BambuType) {
-      return AppConstants.defaultAcceptedBambuExtensions;
-    }
-    // PrusaLink (Buddy firmware) accepts both plain G-code and binary G-code
-    if (printerType === PrusaLinkType) {
-      return AppConstants.defaultAcceptedGcodeExtensions;
-    }
-    // OctoPrint / Moonraker only accept plain G-code natively — .bgcode is a
-    // Prusa-only binary format that other firmwares can't decode.
-    return AppConstants.defaultAcceptedGcodeExtensions.filter((ext) => ext !== ".bgcode");
+  private getAcceptedFileExtensions(_printerType: number): string[] {
+    // PrusaLink (Buddy firmware) accepts both plain G-code and binary G-code.
+    return AppConstants.defaultAcceptedGcodeExtensions;
   }
 }

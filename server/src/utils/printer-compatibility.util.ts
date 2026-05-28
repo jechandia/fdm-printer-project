@@ -1,33 +1,25 @@
-import {
-  BambuType,
-  MoonrakerType,
-  OctoprintType,
-  type PrinterType,
-  PrusaLinkType,
-} from "@/services/printer-api.interface";
+import { type PrinterType, PrusaLinkType } from "@/services/printer-api.interface";
 import type { FileFormatType } from "@/entities/print-job.entity";
 
 /**
  * Compatibility matrix between file formats and printer types.
  *
- *   - `.gcode`  : plain text G-code. Supported by OctoPrint, Moonraker (Klipper),
- *                 and PrusaLink (Buddy firmware).
- *   - `.bgcode` : Prusa binary G-code, only consumed by PrusaLink-flashed
+ *   - `.gcode`  : plain text G-code, accepted by PrusaLink on the legacy Einsy
+ *                 boards (MK3 / MK2.5).
+ *   - `.bgcode` : Prusa binary G-code, only consumed by PrusaLink-flashed Buddy
  *                 firmware (MK4, MK3.9, XL, MINI+, Core One).
- *   - `.3mf`    : Bambu uses 3MF (with embedded G-code) as its native print
- *                 format. Other printer types do not accept 3MF directly.
  */
 const COMPATIBILITY: Record<FileFormatType, ReadonlyArray<PrinterType>> = {
-  gcode: [OctoprintType, MoonrakerType, PrusaLinkType],
+  gcode: [PrusaLinkType],
   bgcode: [PrusaLinkType],
-  "3mf": [BambuType],
+  // 3MF is a slicer container format (PrusaSlicer / BambuStudio); PrusaLink
+  // can't print it directly. Kept here because the analysis pipeline still
+  // recognises .3mf as a known file format.
+  "3mf": [],
 };
 
 const PRINTER_TYPE_LABEL: Record<PrinterType, string> = {
-  [OctoprintType]: "OctoPrint",
-  [MoonrakerType]: "Moonraker",
   [PrusaLinkType]: "PrusaLink",
-  [BambuType]: "Bambu",
 };
 
 /**

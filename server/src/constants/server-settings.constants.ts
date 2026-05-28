@@ -20,9 +20,6 @@ export const getDefaultServerSettings = (): ServerSettingsDto => ({
   sentryDiagnosticsEnabled: false,
   loginRequired: true,
   registration: false,
-  experimentalMoonrakerSupport: false,
-  experimentalBambuSupport: false,
-  experimentalPrusaLinkSupport: false,
 });
 
 export const credentialSettingsKey = "credentials";
