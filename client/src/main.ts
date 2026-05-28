@@ -1,11 +1,5 @@
 import App from '@/App.vue'
 import router from './router'
-import {
-  createSentryPiniaPlugin,
-  browserTracingIntegration,
-  captureException,
-  replayIntegration, init as initSentry
-} from '@sentry/vue'
 import { createApp } from 'vue'
 import { AxiosError } from 'axios'
 import { useSnackbar } from './shared/snackbar.composable'
@@ -21,28 +15,6 @@ console.log(
   `[DEV: ${ import.meta.env.DEV }][PROD: ${ import.meta.env.PROD }]`,
   import.meta.env.PACKAGE_VERSION
 )
-
-initSentry({
-  app,
-  dsn: 'https://0831d0eec221b85ee4ae69b8410fe31c@o4503975545733120.ingest.us.sentry.io/4510641487937536',
-  integrations: [
-    browserTracingIntegration({
-      router
-    }),
-    replayIntegration()
-  ],
-  release: import.meta.env.PACKAGE_VERSION,
-  environment: process.env.NODE_ENV,
-  enabled: process.env.NODE_ENV === 'production', // Set tracesSampleRate to 1.0 to capture 100%
-  // of transactions for performance monitoring.
-  // We recommend adjusting this value in production
-  tracesSampleRate: 1, // tracePropagationTargets: ["localhost", /^https:\/\/yourserver\.io\/api/],
-  // Capture Replay for 10% of all sessions,
-  // plus for 100% of sessions with an error
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1,
-  sendDefaultPii: false
-})
 
 app.config.errorHandler = (err: unknown) => {
   if (err instanceof AxiosError) {
@@ -101,15 +73,12 @@ app.config.errorHandler = (err: unknown) => {
       timeout: 5000
     })
   }
-
-  captureException(err)
 }
 
 app.directive('drop-upload', getFileDropDirective())
 app.directive('drop-printer-position', getDropPrinterPositionDirective())
 
 const pinia = createPinia();
-pinia.use(createSentryPiniaPlugin());
 app.use(pinia)
 
 app.use(VueQueryPlugin)

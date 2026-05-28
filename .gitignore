@@ -8,9 +8,8 @@ node_modules/
 **/test-results/
 
 # Runtime state — must come from a writable volume, not committed.
+# All persistent state lives under data/ at the workspace root.
 data/
-server/database/
-server/media/
 server/.env
 
 # Client local config.

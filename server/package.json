@@ -36,10 +36,6 @@
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "format": "vp fmt --write",
     "tsc": "vp check",
-    "test": "vp test run",
-    "test:watch": "vp test",
-    "test:ui": "vp test --ui --watch",
-    "test:cov": "vp test run --coverage",
     "torm": "tsx --tsconfig tsconfig.json ./node_modules/typeorm/cli.js",
     "typeorm:create": "yarn torm migration:create src/migrations/DropPrintCompletion",
     "typeorm:generate": "yarn torm migration:generate -d src/data-source.ts --pretty src/migrations/AddPrintJob",
@@ -109,24 +105,17 @@
     "@types/passport-anonymous": "1.0.5",
     "@types/passport-jwt": "4.0.1",
     "@types/semver": "7.7.1",
-    "@types/supertest": "7.2.0",
     "@types/uuid": "10.0.0",
     "@types/ws": "8.18.1",
-    "@vitest/coverage-v8": "4.1.6",
-    "@vitest/ui": "4.1.6",
     "deprecation": "2.3.1",
-    "nock": "13.5.6",
     "openapi3-ts": "4.5.0",
-    "supertest": "7.2.2",
     "swagger-ui-dist": "5.32.6",
     "tsx": "4.21.0",
     "typescript": "6.0.3",
-    "vite-plus": "latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    "vite-plus": "latest"
   },
   "resolutions": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest"
   },
   "engines": {
     "node": ">= 22.0.0",

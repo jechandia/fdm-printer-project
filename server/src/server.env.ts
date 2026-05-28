@@ -1,8 +1,6 @@
-import * as Sentry from "@sentry/node";
 import { readFileSync } from "node:fs";
 import { AppConstants } from "./server.constants";
 import { LoggerService as Logger } from "./handlers/logger";
-import { getEnvOrDefault, isProductionEnvironment, isTestEnvironment } from "./utils/env.utils";
 import { errorSummary } from "./utils/error.utils";
 import { packageJsonPath } from "@/utils/fs.utils";
 import { collectDefaultMetrics, register } from "prom-client";
@@ -19,7 +17,7 @@ export function setupEnvConfig() {
   }
 
   ensurePackageVersionSet();
-  setupSentry();
+  installUnhandledRejectionHandler();
   ensurePortSet();
 
   // Optional: Enable collection of default metrics like memory, CPU, etc.
@@ -48,24 +46,11 @@ export function fetchServerPort() {
   return port;
 }
 
-export function setupSentry() {
+function installUnhandledRejectionHandler() {
   const logger = new Logger("FDM-Environment");
-  const sentryDsnToken = getEnvOrDefault(AppConstants.sentryCustomDsnToken, AppConstants.sentryCustomDsnDefault);
-
-  Sentry.init({
-    dsn: sentryDsnToken,
-    environment: process.env.NODE_ENV,
-    release: process.env.npm_package_version,
-    enabled: !isTestEnvironment(),
-    tracesSampleRate: isProductionEnvironment() ? 0.25 : 1,
-  });
-
   process.on("unhandledRejection", (e) => {
-    const message = `Unhandled rejection error - ${errorSummary(e)}`;
-    logger.error(message);
-
-    // The server must not crash
-    Sentry.captureException(e);
+    // Server must not crash on unhandled rejections — log and continue.
+    logger.error(`Unhandled rejection error - ${errorSummary(e)}`);
   });
 }
 
