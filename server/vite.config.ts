@@ -49,8 +49,6 @@ export default defineConfig({
     testTimeout: 5000,
     silent: false,
     reporters: ["verbose"],
-    setupFiles: ["./test/setup-after-env.ts"],
-    globalSetup: "./test/setup-global.ts",
     coverage: {
       provider: "v8",
       reporter: ["clover", "json", "lcov", "text"],

@@ -28,6 +28,7 @@
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "format": "vp fmt --write",
     "tsc": "vp check",
+    "test": "vp test --run",
     "torm": "tsx --tsconfig tsconfig.json ./node_modules/typeorm/cli.js",
     "typeorm:create": "yarn torm migration:create src/migrations/DropPrintCompletion",
     "typeorm:generate": "yarn torm migration:generate -d src/data-source.ts --pretty src/migrations/AddPrintJob",
