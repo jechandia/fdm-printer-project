@@ -1,23 +1,6 @@
 <template>
   <v-card>
     <v-card-text>
-      <SettingSection title="Remote Sentry diagnostic reports">
-        <v-checkbox
-          v-model="sentryDiagnosticsEnabled"
-          label="Enable remote Sentry diagnostic reports"
-          @change="saveSentryDiagnosticsSettings"
-        />
-        <v-btn
-          color="secondary"
-          @click="sendTestSentryException()"
-        >
-          <v-icon class="pr-2">bug_report</v-icon>
-          Test Error
-        </v-btn>
-      </SettingSection>
-
-      <v-divider />
-
       <SettingSection
         :usecols="false"
         title="Download a .zip file containing all logs from the server"
@@ -51,45 +34,11 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
-import { useSettingsStore } from '@/store/settings.store'
-import { SettingsService } from '@/backend'
-import { setSentryEnabled } from '@/utils/sentry.util'
 import { ServerPrivateService } from '@/backend/server-private.service'
 import { useSnackbar } from '@/shared/snackbar.composable'
-import { captureException } from '@sentry/vue'
 import SettingSection from '@/components/Settings/Shared/SettingSection.vue'
 
 const snackBar = useSnackbar()
-const settingsStore = useSettingsStore()
-const sentryDiagnosticsEnabled = ref(false)
-onMounted(async () => {
-  await settingsStore.loadSettings()
-  sentryDiagnosticsEnabled.value =
-    settingsStore.serverSettings?.sentryDiagnosticsEnabled || false
-})
-
-async function saveSentryDiagnosticsSettings() {
-  await SettingsService.setSentryDiagnosticsSettings(
-    sentryDiagnosticsEnabled.value
-  )
-  setSentryEnabled(sentryDiagnosticsEnabled.value)
-}
-
-async function sendTestSentryException() {
-  const text = `Test Error ${Date.now()} Sentry enabled: ${
-    sentryDiagnosticsEnabled.value
-  }`
-  try {
-    throw new Error(text)
-  } catch (e) {
-    captureException(e)
-    snackBar.openInfoMessage({
-      title: 'Test report was sent',
-      subtitle: `Content: ${text}`
-    })
-  }
-}
 
 async function downloadLogDump() {
   await ServerPrivateService.downloadLogDump()

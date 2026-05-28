@@ -245,10 +245,7 @@ import { appConstants } from "@/shared/app.constants";
 import { useSnackbar } from "@/shared/snackbar.composable";
 import { AxiosError } from "axios";
 import { useFeatureStore } from "@/store/features.store";
-import klipperLogoSvg from "@/assets/klipper-logo.svg";
-import octoPrintTentacleSvg from "@/assets/octoprint-tentacle.svg";
 import prusaLinkLogoSvg from "@/assets/prusa-link-logo.svg";
-import bambuLogoSvg from "@/assets/bambu-logo.png";
 import {
   getPrinterTypeName,
   isMoonrakerType, isPrusaLinkType, isBambuType,
@@ -280,66 +277,21 @@ const duplicatingPrinter = ref(false);
 const isDuplicating = ref(false);
 const duplicatedFromName = ref<string | null>(null);
 
-const serviceTypes = computed(() => {
-  if (featureStore.hasFeature("multiplePrinterServices")) {
-    const feature = featureStore.getFeature<{ types: string[] }>(
-      "multiplePrinterServices",
-    );
-    const hasKlipperSupport = feature?.subFeatures?.types?.includes("klipper");
-    const hasPrusaLinkSupport = feature?.subFeatures?.types?.includes("prusaLink");
-    const hasBambuSupport = feature?.subFeatures?.types?.includes("bambu");
+// This build only wires the PrusaLink adapter — the OctoPrint/Moonraker/Bambu
+// services in the server are dead code here, so the dropdown is hard-coded to
+// PrusaLink to avoid letting the user pick something that won't actually
+// connect. The unused PrinterType imports stay (some templates still read
+// them) but only PrusaLink is offered as an option.
+const serviceTypes = computed(() => [
+  {
+    name: getPrinterTypeName(PrusaLinkType),
+    type: PrusaLinkType,
+    logo: prusaLinkLogoSvg,
+    height: "20px",
+  },
+]);
 
-    return [
-      {
-        name: getPrinterTypeName(OctoPrintType),
-        type: OctoPrintType,
-        logo: octoPrintTentacleSvg,
-        height: "60px",
-      },
-      ...(hasKlipperSupport ? [{
-        name: getPrinterTypeName(MoonrakerType),
-        type: MoonrakerType,
-        logo: klipperLogoSvg,
-        height: "60px",
-      }] : []),
-      ...(hasPrusaLinkSupport ? [{
-        name: getPrinterTypeName(PrusaLinkType),
-        type: PrusaLinkType,
-        logo: prusaLinkLogoSvg,
-        height: "20px",
-      }] : []),
-      ...(hasBambuSupport ? [{
-        name: getPrinterTypeName(BambuType),
-        type: BambuType,
-        logo: bambuLogoSvg,
-        height: "60px",
-      }] : []),
-    ];
-  }
-
-  return [
-    {
-      name: "OctoPrint",
-      type: OctoPrintType,
-      logo: octoPrintTentacleSvg,
-      height: "75px",
-    },
-  ];
-});
-
-const hasAllPrinterTypes = computed(() => {
-  if (!featureStore.hasFeature("multiplePrinterServices")) {
-    return false;
-  }
-  const feature = featureStore.getFeature<{ types: string[] }>(
-    "multiplePrinterServices",
-  );
-  const hasKlipperSupport = feature?.subFeatures?.types?.includes("klipper");
-  const hasPrusaLinkSupport = feature?.subFeatures?.types?.includes("prusaLink");
-  const hasBambuSupport = feature?.subFeatures?.types?.includes("bambu");
-
-  return hasKlipperSupport && hasPrusaLinkSupport && hasBambuSupport;
-});
+const hasAllPrinterTypes = computed(() => false);
 
 const printerId = computed(() => {
   return dialog.context()?.id;

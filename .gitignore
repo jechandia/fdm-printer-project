@@ -10,6 +10,7 @@ node_modules/
 # Runtime state — must come from a writable volume, not committed.
 # All persistent state lives under data/ at the workspace root.
 data/
+backups/
 server/.env
 
 # Client local config.
