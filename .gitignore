@@ -13,6 +13,9 @@ data/
 backups/
 server/.env
 
+# Personal seed file with printer passwords — only the .example template is tracked.
+printers.yaml
+
 # Client local config.
 client/.env
 

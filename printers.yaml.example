@@ -1,0 +1,55 @@
+# Sample seed file for the FirstTimeSetup yaml-import endpoint.
+#
+# Copy this file to printers.yaml, fill in the placeholders for your printers,
+# and POST it to the running server:
+#
+#   curl -F "yamlFile=@printers.yaml" http://localhost:4000/api/v2/first-time-setup/yaml-import
+#
+# The endpoint is only available before FirstTimeSetup is completed — after
+# that, use the UI or the regular /api/v2/printers routes to add printers.
+#
+# printerType reference: 2 = PrusaLink (the only adapter wired in this build).
+# Other vendor codes (OctoPrint=0, Moonraker=1, Bambu=3) are inert here.
+
+version: "2.0"
+databaseType: sqlite
+config:
+  exportPrinters: true
+  exportFloors: true
+  exportFloorGrid: true
+
+printers:
+  # Prusa XL on Buddy firmware. Username for PrusaLink is "maker" by default;
+  # the password is the one set in the printer's Web UI -> Settings -> Network.
+  - id: 1
+    enabled: true
+    printerType: 2
+    name: Prusa XL
+    printerURL: http://192.168.1.10
+    apiKey: ""
+    username: maker
+    password: REPLACE_WITH_PRUSALINK_PASSWORD
+
+  # Legacy MK3 on standalone PrusaLink (Einsy board).
+  - id: 2
+    enabled: true
+    printerType: 2
+    name: Prusa MK3
+    printerURL: http://192.168.1.11
+    apiKey: ""
+    username: maker
+    password: REPLACE_WITH_PRUSALINK_PASSWORD
+
+floors:
+  # A single floor with both printers laid out side-by-side on the grid.
+  # x/y are 0-indexed cells in the printer-grid layout.
+  - id: 1
+    order: 0
+    name: Workshop
+    printers:
+      - printerId: 1
+        x: 0
+        y: 0
+      - printerId: 2
+        x: 1
+        y: 0

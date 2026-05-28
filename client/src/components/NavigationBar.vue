@@ -87,7 +87,6 @@ const primaryItems: Array<[string, string, string]> = [
 ]
 
 const secondaryItems: Array<[string, string, string]> = [
-  ['mdi:mdi-bug', 'Maintenance', '/maintenance-logs'],
   ['mdi:mdi-cog', 'Settings', '/settings'],
 ]
 </script>

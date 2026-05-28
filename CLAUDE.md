@@ -23,10 +23,18 @@ Until May 2026 the workspace pulled `server/` and `client/` in as git submodules
 
 From the workspace root:
 
-- `yarn install` — installs everything (server + client) in a single hoisted `node_modules/`. The server's `@fdm-monster/client-next` dep is a `workspace:*` link, so `node_modules/@fdm-monster/client-next` resolves to `client/`.
+- `yarn install` — installs everything (server + client) in a single hoisted `node_modules/`.
 - `yarn build` — builds the client first, then the server (`build:client && build:server`).
 - `yarn start` — runs the production server (which serves the built client bundle).
 - `yarn dev:server` / `yarn dev:client` — start the backend (watch mode) and the Vite dev server in two separate terminals.
+
+Ops scripts (live under `scripts/`):
+
+- `yarn doctor` — preflight: Node 22+, yarn 4+, `vp` on PATH, `node_modules`+`dist` present, `server/.env` exists, `data/` writable, JWT secret non-default, target port free. Exits non-zero on failure so it slots into a deploy gate.
+- `yarn backup` — snapshots `data/` to `backups/fdm-monster-<timestamp>.tar.gz`.
+- `yarn restore [path/to/backup.tar.gz]` — restores. With no arg, picks the newest tarball in `backups/`. Refuses if the server is running. Requires typing `yes`.
+- `yarn reset` — wipes `data/` so the next boot is a fresh FirstTimeSetup. Refuses if the server is running. Requires typing `reset`.
+
 You can also drive individual workspaces directly:
 
 - `yarn workspace @fdm-monster/server <script>`
@@ -107,14 +115,14 @@ Database migrations (TypeORM, SQLite at `database/fdm-monster.sqlite`):
 - `yarn typeorm:migrate` — run pending migrations
 - `yarn typeorm:revert` — revert the last migration
 
-Configuration is via environment variables / `.env` — see `.env.template` for the full list (server port default 4000, JWT overrides, demo mode, media/database paths, Loki/Prometheus, Swagger toggles).
+Configuration is via environment variables / `.env` — see `.env.template` for the full list (server port, JWT overrides, PrusaLink poll cadence, media/database paths, Swagger toggles). The template was trimmed during the deployment-fork cleanup: GitHub PAT, Sentry DSN, demo mode, and Loki/Prometheus are gone because the code paths that read them were removed.
 
 ### Backend architecture
 
 - **Entry point**: `src/index.ts` → `setupEnvConfig()` → `setupServer()` (`src/server.core.ts`) builds the Express app and DI container → resolves `ServerHost` (`src/server.host.ts`) which mounts routes, runs the `BootTask`, and listens.
 - **Dependency injection**: Awilix container, configured in `src/container.ts` with tokens in `src/container.tokens.ts`. Classic injection mode (constructor param names are resolved by token name). Most services are `.singleton()`; printer API adapters and per-printer clients are `.transient()` on purpose (one per printer/request). `scopePerRequest` (awilix-express) creates a request scope so controllers and `printerResolveMiddleware` can inject per-request values like `printerLogin`.
-- **Controllers**: `src/controllers/*.controller.ts` use `awilix-express` decorators (`@route`, `@GET`, `@before`, etc.). Auth/role guards are applied via `@before([authenticate(), authorizeRoles([...])])`. Routes are auto-loaded by `loadControllersFunc()`. API is served under `/api`; Swagger at `/api-docs`.
-- **Multi-vendor printer abstraction**: The core feature is talking to four printer types — OctoPrint, Moonraker (Klipper), PrusaLink, and Bambu Lab. `PrinterApiFactory` (`src/services/printer-api.factory.ts`) resolves the right adapter per printer based on `login.printerType`, all implementing `IPrinterApi` (`src/services/printer-api.interface.ts`). Each vendor has its own service dir under `src/services/` (`octoprint/`, `moonraker/`, `prusa-link/`, `bambu/`) with an HTTP client/API and a websocket/MQTT/polling adapter.
+- **Controllers**: `src/controllers/*.controller.ts` use `awilix-express` decorators (`@route`, `@GET`, `@before`, etc.). Auth/role guards are applied via `@before([authenticate(), authorizeRoles([...])])`. Routes are auto-loaded by `loadControllersFunc()`. API is served under `/api/v2` (the `apiRoute` constant); Swagger at `/api-docs`.
+- **Multi-vendor printer abstraction**: The codebase ships adapters for OctoPrint, Moonraker (Klipper), PrusaLink, and Bambu Lab — `PrinterApiFactory` (`src/services/printer-api.factory.ts`) resolves the right one per printer based on `login.printerType`, all implementing `IPrinterApi` (`src/services/printer-api.interface.ts`). Each vendor has its own service dir under `src/services/` (`octoprint/`, `moonraker/`, `prusa-link/`, `bambu/`). **In this deployment fork only PrusaLink is exposed in the UI** (the "Add Printer" dropdown and the Experimental settings page) — the other three adapters are intact backend dead code, available if you ever want to flip them back on.
 
 #### PrusaLink API reference
 
@@ -140,7 +148,7 @@ Hardware notes (verified against the physical farm — Prusa XL on Buddy fw 2.1.
 - **Listings on the legacy MK3 are eventually consistent** (~1s lag): a read immediately after a create/upload/delete can be stale. The XL (Buddy) is immediately consistent.
 - The XL exposes storage `usb`; the MK3 exposes `local` (+ read-only `sdcard`). `getInternalStorage()` already resolves this.
 - **State layer** (`src/state/`): in-memory caches and stores that mirror live printer state — `printer.cache`, `printer-socket.store` (live socket connections per printer), `printer-events.cache`, `settings.store`, `floor.store`, etc. These are singletons and are the source of truth for runtime printer status (the DB holds persistent config).
-- **Tasks** (`src/tasks/`): scheduled/recurring jobs run via `toad-scheduler` / `TaskManagerService`. `BootTask` runs once at startup; `PrinterWebsocketTask` is a recurring heartbeat that maintains printer socket connections; `SocketIoTask` pushes state to clients; others handle client-bundle download, software updates, print-job analysis.
+- **Tasks** (`src/tasks/`): scheduled/recurring jobs run via `toad-scheduler` / `TaskManagerService`. `BootTask` runs once at startup (and now refuses to boot in `NODE_ENV=production` if the JWT secret is the template default); `PrinterWebsocketTask` is a recurring heartbeat that maintains printer socket connections; `SocketIoTask` pushes state to clients; `PrintJobAnalysisTask` analyzes pending print jobs. The upstream `clientDistDownloadTask`, `softwareUpdateTask` and `PrinterWebsocketRestoreTask` were removed — they polled GitHub or reauthed OctoPrint sessions, neither relevant here.
 - **Persistence**: TypeORM entities in `src/entities/`, data source in `src/data-source.ts`, migrations in `src/migrations/` (timestamp-prefixed). ORM-backed services live in `src/services/orm/`.
 - **Realtime to client**: Socket.IO via `SocketIoGateway` (`src/state/socket-io.gateway.ts`), attached to the HTTP server in `ServerHost`.
 - **Auth**: Passport with JWT + anonymous strategies (`src/middleware/passport.ts`), role-based authorization (`ROLES` in `src/constants/authorization.constants.ts`), refresh tokens.
@@ -153,11 +161,18 @@ Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspa
 - `yarn build` — `vue-tsc --noEmit && vite build` into `dist/`
 - `yarn lint` — ESLint with `--fix`
 
-The OpenAPI-generated client (`@hey-api/openapi-ts`) is still checked into `src/backend/generated/`, but the regeneration script and the upstream Playwright/Vitest harnesses have been removed. If you need to regenerate, install `@hey-api/openapi-ts` ad-hoc and point it at a running backend (`http://localhost:4000/api-docs/swagger.json`).
+The OpenAPI-generated client (`@hey-api/openapi-ts`) is still checked into `src/backend/generated/`, but the regeneration script and the upstream Playwright/Vitest harnesses have been removed. If you need to regenerate after backend contract changes, install ad-hoc and point it at a running backend:
+
+```sh
+cd client
+npx -p @hey-api/openapi-ts@0.97 openapi-ts \
+  -i http://localhost:4000/api-docs/swagger.json \
+  -o src/backend/generated
+```
 
 ### Frontend architecture
 
-- **Entry**: `src/main.ts` mounts the Vue app with Pinia (state), Vue Router, Vuetify, TanStack Vue Query, and Sentry.
+- **Entry**: `src/main.ts` mounts the Vue app with Pinia (state), Vue Router, Vuetify, and TanStack Vue Query. (Sentry init was stripped; `@sentry/vue` stays as a dep so the `captureException` calls scattered through the code become silent no-ops without an SDK behind them.)
 - **Generated API client**: `src/backend/generated/` is **auto-generated** by `@hey-api/openapi-ts` from the backend's Swagger JSON (`openapi-ts.config.ts` reads `http://localhost:4000/api-docs/swagger.json`). Do not hand-edit files in `generated/`; regenerate with `yarn openapi-ts` against a running backend. The axios client is configured with `baseUrl: '/api'` (`client.gen.ts`).
 - **Service layer** (`src/backend/`): hand-written service classes (`*.service.ts`) wrap the generated SDK and expose typed methods to the rest of the app. `base.service.ts` / `server.api.ts` hold shared client setup.
 - **Data fetching**: TanStack Vue Query hooks in `src/queries/`.

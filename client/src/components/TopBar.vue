@@ -146,8 +146,7 @@ const pageTitles: Record<string, { title: string; subtitle?: string }> = {
   'PrintersView': { title: 'Printer List' },
   'PrinterGrid': { title: 'Printer Grid' },
   'Settings': { title: 'Settings' },
-  "Files": { title: 'Files' },
-  "MaintenanceLogs": { title: 'Maintenance Logs' }
+  "Files": { title: 'Files' }
 }
 
 const pageTitle = computed(() => {
