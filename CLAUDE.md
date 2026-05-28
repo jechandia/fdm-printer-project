@@ -61,8 +61,32 @@ yarn build
 
 # Run:
 yarn start
-# or, persistent via systemd: see deploy/fdm-monster.service template
 ```
+
+### Persistent via systemd
+
+For an always-on install, drop this unit at `/etc/systemd/system/fdm-monster.service` (adjust `User` and `WorkingDirectory` to match the VM):
+
+```ini
+[Unit]
+Description=FDM-Monster (3D printer farm manager)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fdm
+WorkingDirectory=/opt/fdm-monster
+ExecStart=/usr/local/bin/yarn start
+Restart=on-failure
+RestartSec=5s
+EnvironmentFile=-/opt/fdm-monster/server/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then `sudo systemctl daemon-reload && sudo systemctl enable --now fdm-monster`. Logs: `journalctl -u fdm-monster -f`.
 
 Configuration lives in `server/.env` (see `server/.env.template` for the full list — `SERVER_PORT`, `JWT_SECRET`, media/database paths, etc.). Persistent state goes wherever `MEDIA_PATH` and `DATABASE_PATH` point; keep those on a backed-up volume.
 
