@@ -10,10 +10,13 @@ bundle, and the maintenance burden of upstream merges.
 The UI already hides these vendors (the printer-type dropdown is
 PrusaLink-only). This branch is about the **backend** strip.
 
-## Scope (audited from `main` 2026-05-28)
+## Scope (audited from `main` 2026-05-28, re-audited on `strip-multi-vendor-adapters` 2026-05-28)
 
-655 lines of code reference the three vendors, across **25 files** in
-`server/src/`. Rough buckets:
+The first audit said "655 lines / 25 files". A re-audit found **666 lines
+across 104 files** — the 25 was counting only the *consumers* outside the
+vendor source dirs, not the dirs themselves. Same scope conceptually, larger
+volume of code being deleted (the vendor dirs hold dozens of DTO files), same
+volume of patches in consumer files. Rough buckets:
 
 ### Easy — direct deletions (already executed once and reverted, ~20 min)
 
@@ -42,17 +45,82 @@ PrusaLink-only). This branch is about the **backend** strip.
   - `server/src/services/validators/printer-service.validation.ts` — drop the OctoPrint apiKey schema branch; keep only the PrusaLink username/password refinement.
   - `server/src/utils/printer-compatibility.util.ts` — collapse `COMPATIBILITY` and `PRINTER_TYPE_LABEL` to PrusaLink only.
 
+#### Additional consumers found on re-audit (2026-05-28)
+
+The original audit missed these — they have to land alongside the above for a green build:
+
+- `server/src/controllers/printer-settings.controller.ts` — the whole controller
+  is OctoPrint (`OctoprintClient.getSettings`, `updatePrinterNameSetting`).
+  Either delete it and its route registration, or rewrite to PrusaLink. Closest
+  PrusaLink equivalent would be `GET /api/v1/info` / `PUT /api/v1/printer/name`
+  if we want feature parity, but the UI may not even consume this — verify
+  before rewriting.
+- `server/src/controllers/printer.controller.ts:308` — `@route("/:id/octoprint/server/restart")`
+  handler. Delete; no PrusaLink analogue.
+- `server/src/controllers/server-public.controller.ts:55` — the public boot
+  payload exposes `["octoprint", "klipper", "prusaLink", "bambu"]` keyed by the
+  experimental flags. Collapse to `["prusaLink"]`.
+- `server/src/shared/websocket-rpc-extended.adapter.ts` — Moonraker-only
+  JSON-RPC websocket helper. Delete the file outright once Moonraker is gone.
+- `server/src/shared/default-http-client.builder.ts` — imports from
+  `octoprint/constants/octoprint-service.constants`. **This is the third
+  consumer of the header constants** (the original plan listed only the
+  PrusaLink HTTP client builder + `prusa-link.api.ts`). PR 1 has to repoint
+  all three.
+
+#### Server-settings flags — bigger than just route handlers
+
+`experimentalMoonrakerSupport` and `experimentalBambuSupport` aren't only in
+`settings.controller.ts` — they're persisted DB columns wired through the
+entire settings pipeline:
+
+- `server/src/constants/server-settings.constants.ts:23-24` — defaults.
+- `server/src/entities/settings.entity.ts:20-21` — TypeORM column types.
+- `server/src/state/settings.store.ts` — 4 read sites + 2 setters
+  (`setExperimentalMoonrakerSupport`, `setExperimentalBambuSupport`).
+- `server/src/shared/runtime-settings.migration.ts:61-66` — settings-shape
+  migration (reads old entity, writes new shape).
+- `server/src/controllers/server-public.controller.ts:46-58` — gates the
+  vendor list in the public boot payload.
+
+Removing them cleanly means a TypeORM migration that drops the two columns.
+Acceptable alternative: leave the columns in the DB schema (mark `@deprecated`
+in the entity) and just strip all the read/write code — then there's nothing
+to migrate for existing installs.
+
+#### Lower-priority cleanups (optional in this strip)
+
+- `server/src/controllers/printer.controller.ts:174` — JSDoc link to
+  `docs.octoprint.org`. Just a comment; trivial.
+- `server/src/utils/swagger/generator.ts:20` — API description string
+  mentions OctoPrint/Klipper/BambuLab. Trivial.
+- `server/src/controllers/slicer-compat.controller.ts:61` and
+  `server/src/server.constants.ts:24` — `defaultAcceptedBambuExtensions: [".3mf"]`.
+  The `.3mf` format is **not** Bambu-exclusive (PrusaSlicer also produces 3MF),
+  so the constant is mis-named, not dead. Rename to
+  `defaultAccepted3mfExtensions` (or just inline) rather than delete.
+- `server/src/utils/parsers/3mf.parser.ts` — handles both generic single-plate
+  3MF and Bambu Lab's multi-plate variant. Stays as-is; it's a file-format
+  parser, not a vendor adapter. Keep but drop the "(Bambu Lab format)" wording
+  from the file header so it doesn't read as vendor-specific.
+
 There are **diffs from the May 2026 attempt for each of the above files
 preserved in the git history** (commits that touched them on the previous,
 reverted attempt) — useful as a reference but don't cherry-pick blindly, the
 abort happened before the harder problems below were solved.
 
-### Hard — the cache + test-store entanglement
+### Hard — the cache + socket-store entanglement
 
-The two real blockers, both in `server/src/state/`:
+The three real blockers, all in `server/src/state/`:
 
 - `printer-events.cache.ts`
+- `printer-socket.store.ts` *(added on re-audit — was missed in the original list)*
 - `test-printer-socket.store.ts`
+
+`printer-socket.store.ts` imports `OctoprintWebsocketAdapter` + `OctoprintType` and
+has a vendor-specific reauth branch (`if (socket.printerType === OctoprintType
+&& (socket as OctoprintWebsocketAdapter).needsReauth())`) that runs on the
+PrinterWebsocketTask interval. Same handling as the other two stores.
 
 These mix imports from all four vendors:
 
@@ -120,17 +188,28 @@ Working chronologically (`git reflog` if you need them):
 
 To keep review tractable:
 
-1. **PR 1**: Move shared HTTP header constants out of `octoprint/`. Trivial
+1. **PR 1**: Move shared HTTP header constants out of `octoprint/` into
+   `server/src/constants/http-headers.constants.ts`. Repoint **5** importers:
+   `octoprint/utils/api.utils.ts`,
+   `octoprint/utils/octoprint-http-client.builder.ts`,
+   `prusa-link/prusa-link.api.ts`,
+   `prusa-link/utils/prusa-link-http-client.builder.ts`,
+   `shared/default-http-client.builder.ts`. Delete the old file. Trivial
    rename, no behavior change.
 2. **PR 2**: Restore minimal stubs + delete service dirs + patch all the
    easy files. Get to a green build with the cache intact (option 1 above).
+   Includes the re-audit additions: drop `printer-settings.controller.ts`,
+   the `/octoprint/server/restart` route in `printer.controller.ts`, the
+   vendor list in `server-public.controller.ts`, the moonraker-only
+   `shared/websocket-rpc-extended.adapter.ts`, and the `experimental*Support`
+   plumbing across constants/entity/store/migration/public-controller.
 3. **PR 3**: Frontend cleanup — drop the now-dead `OctoPrintType`,
    `MoonrakerType`, `BambuType` references in
    `client/src/shared/printer-types.constants.ts`, and any orphaned
    `@/store/features.store` entries for `klipper` / `bambu` /
    `prusaLink` feature flags.
-4. **PR 4** (later): Refactor `PrinterEventsCache` to be vendor-agnostic
-   (option 2 above).
+4. **PR 4** (later): Refactor `PrinterEventsCache` (plus `PrinterSocketStore`
+   and `TestPrinterSocketStore`) to be vendor-agnostic (option 2 above).
 
 ## Validation checklist for each PR
 
