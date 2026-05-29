@@ -81,8 +81,13 @@
             :title="previewCanOpen ? (thumbnail?.length ? 'View larger preview' : 'View print info') : undefined"
             @click.stop.prevent="previewCanOpen && (previewOpen = true)"
           >
+            <!-- Only paint the thumbnail when there's actually an
+                 active print. The TanStack cache keeps the last
+                 fetched preview around, so without this gate the tile
+                 would still show the previous print's image after the
+                 printer goes back to operational/idle. -->
             <v-img
-              v-if="isOnline && thumbnail?.length"
+              v-if="isOnline && thumbnail?.length && (isPrinting || isPaused)"
               :src="'data:image/png;base64,' + (thumbnail ?? '')"
               :width="tileIconThumbnailSize"
               :height="tileIconThumbnailSize"
