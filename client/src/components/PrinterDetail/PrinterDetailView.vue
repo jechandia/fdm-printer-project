@@ -581,7 +581,14 @@
                   <v-card-text>
                 <!-- Breadcrumb -->
                 <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
-                  <a href="#" class="pdv-crumb" @click.prevent="navigateStorageTo(null)">root</a>
+                  <a
+                    href="#"
+                    class="pdv-crumb pdv-crumb--home"
+                    title="Root"
+                    @click.prevent="navigateStorageTo(null)"
+                  >
+                    <v-icon size="16">home</v-icon>
+                  </a>
                   <template v-for="(seg, i) in storageBreadcrumb" :key="i">
                     <span class="mx-1">/</span>
                     <a
@@ -705,7 +712,14 @@
               <v-card-text>
                 <!-- Breadcrumb -->
                 <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
-                  <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
+                  <a
+                    href="#"
+                    class="pdv-crumb pdv-crumb--home"
+                    title="Root"
+                    @click.prevent="navigateFilesTo('')"
+                  >
+                    <v-icon size="16">home</v-icon>
+                  </a>
                   <template v-for="(seg, i) in filesBreadcrumb" :key="i">
                     <span class="mx-1">/</span>
                     <a
@@ -3097,6 +3111,20 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 .pdv-crumb:hover {
   text-decoration: underline;
+}
+
+/* The home crumb is the v-icon-only entry point at the start of the
+   trail. Aligns the icon to the baseline of the text crumbs and kills
+   the underline-on-hover (the icon already has its own hover shade). */
+.pdv-crumb--home {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+.pdv-crumb--home:hover {
+  text-decoration: none;
+  opacity: 1;
 }
 
 .pdv-files {
