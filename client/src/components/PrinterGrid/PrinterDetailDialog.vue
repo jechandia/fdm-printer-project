@@ -6,7 +6,24 @@
           <v-icon class="mr-2" color="primary">analytics</v-icon>
           <span class="text-truncate">{{ printer?.name ?? '—' }}</span>
         </div>
-        <v-btn icon="close" variant="text" size="small" @click="visible = false" />
+        <div class="d-flex align-center">
+          <v-btn
+            variant="text"
+            size="small"
+            prepend-icon="open_in_new"
+            :disabled="!printerId"
+            @click="openFullPage"
+          >
+            Full page
+          </v-btn>
+          <v-btn
+            icon="close"
+            variant="text"
+            size="small"
+            class="ml-1"
+            @click="visible = false"
+          />
+        </div>
       </v-card-title>
 
       <v-divider />
@@ -240,6 +257,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import { PrintJobService, PrintJobDto } from '@/backend/print-job.service'
 import { PrinterMaintenanceLogService } from '@/backend/printer-maintenance-log.service'
@@ -256,9 +274,16 @@ const props = defineProps<{
 }>()
 
 const printerStore = usePrinterStore()
+const router = useRouter()
 const printer = computed(() =>
   props.printerId ? printerStore.printer(props.printerId) : undefined,
 )
+
+function openFullPage() {
+  if (!props.printerId) return
+  visible.value = false
+  void router.push(`/printer/${props.printerId}`)
+}
 
 // Load the last 50 jobs for this printer whenever the dialog opens.
 // Using `enabled` keyed to `visible` so we don't hit the API just for

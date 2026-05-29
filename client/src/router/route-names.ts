@@ -9,6 +9,7 @@ export const RouteNames = {
   PrintJobs: 'Print Jobs',
   Files: 'Files',
   Maintenance: 'Maintenance',
+  PrinterDetail: 'PrinterDetail',
   About: 'About',
   PermissionDenied: 'PermissionDenied',
   NotFound: 'NotFound',
