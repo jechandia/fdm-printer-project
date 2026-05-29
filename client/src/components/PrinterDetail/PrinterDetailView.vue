@@ -335,33 +335,135 @@
                     or queue files directly from the Files tab.
                   </p>
                 </div>
-                <ol v-else class="pdv-queue-list">
-                  <li
-                    v-for="job in queue"
-                    :key="job.id"
-                    class="pdv-queue-row"
-                    :class="{ 'pdv-queue-row--starting': job.status === 'STARTING' }"
-                  >
-                    <span class="pdv-queue-row__pos">
-                      {{ job.queuePosition + 1 }}.
-                    </span>
-                    <span
-                      class="pdv-queue-row__name text-truncate"
-                      :title="job.fileName"
+                <template v-else>
+                  <!-- "Next up" hero — the head of the queue gets a richer
+                       card with a thumbnail, slice metadata, and a
+                       direct "Send to print" button so the operator
+                       doesn't have to scan back up to the toolbar to
+                       dispatch. -->
+                  <article class="pdv-hero" :class="{ 'pdv-hero--starting': queue[0].status === 'STARTING' }">
+                    <div class="pdv-hero__label">
+                      <v-icon size="x-small">north_east</v-icon>
+                      Next up
+                    </div>
+                    <div class="pdv-hero__body">
+                      <div class="pdv-hero__thumb">
+                        <FileThumbnailCell
+                          v-if="queue[0].fileStorageId"
+                          :file-storage-id="queue[0].fileStorageId"
+                          :thumbnails="(queue[0].thumbnails as any) || []"
+                        />
+                        <v-icon v-else size="44" color="medium-emphasis">
+                          insert_drive_file
+                        </v-icon>
+                      </div>
+                      <div class="pdv-hero__info">
+                        <div
+                          class="pdv-hero__name"
+                          :title="displayQueueName(queue[0])"
+                        >
+                          {{ displayQueueName(queue[0]) }}
+                        </div>
+                        <div class="pdv-hero__meta">
+                          <v-chip
+                            v-if="queue[0].status === 'STARTING'"
+                            size="x-small"
+                            color="primary"
+                            variant="tonal"
+                            density="comfortable"
+                          >
+                            Transferring…
+                          </v-chip>
+                          <span
+                            v-if="queue[0].fileFormat"
+                            class="text-caption text-medium-emphasis"
+                          >
+                            {{ queue[0].fileFormat.toUpperCase() }}
+                          </span>
+                          <span
+                            v-if="queue[0].fileSize"
+                            class="text-caption text-medium-emphasis"
+                          >
+                            · {{ formatHeroFileSize(queue[0].fileSize) }}
+                          </span>
+                        </div>
+                        <div class="pdv-hero__stats">
+                          <div v-if="queue[0].estimatedTimeSeconds" class="pdv-hero__stat">
+                            <v-icon size="x-small">schedule</v-icon>
+                            ~{{ formatQueueDuration(queue[0].estimatedTimeSeconds) }}
+                          </div>
+                          <div v-if="formatFilamentGramsHero(queue[0].filamentGrams)" class="pdv-hero__stat">
+                            <v-icon size="x-small">fitness_center</v-icon>
+                            {{ formatFilamentGramsHero(queue[0].filamentGrams) }}
+                          </div>
+                          <div v-if="queue[0].filamentType" class="pdv-hero__stat">
+                            <v-icon size="x-small">science</v-icon>
+                            {{ queue[0].filamentType }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="pdv-hero__actions">
+                        <v-btn
+                          size="small"
+                          variant="flat"
+                          color="success"
+                          prepend-icon="play_arrow"
+                          :disabled="!isOnline || !isOperational || queueProcessingNext || queue[0].status === 'STARTING'"
+                          :loading="queueProcessingNext"
+                          @click="processNextInQueue"
+                        >
+                          Send to print
+                        </v-btn>
+                        <v-btn
+                          size="x-small"
+                          variant="text"
+                          icon
+                          title="Remove from queue"
+                          :loading="removingQueueId === queue[0].id"
+                          @click="removeFromQueue(queue[0])"
+                        >
+                          <v-icon size="16">close</v-icon>
+                        </v-btn>
+                      </div>
+                    </div>
+                  </article>
+
+                  <!-- Tail of the queue: compact rows. Position labels
+                       start at 2 since the hero is position 1. -->
+                  <ol v-if="queue.length > 1" class="pdv-queue-list">
+                    <li
+                      v-for="(job, idx) in queue.slice(1)"
+                      :key="job.id"
+                      class="pdv-queue-row"
                     >
-                      {{ job.fileName }}
-                    </span>
-                    <v-chip
-                      v-if="job.status === 'STARTING'"
-                      size="x-small"
-                      color="primary"
-                      variant="tonal"
-                      density="comfortable"
-                    >
-                      Transferring…
-                    </v-chip>
-                  </li>
-                </ol>
+                      <span class="pdv-queue-row__pos">
+                        {{ idx + 2 }}
+                      </span>
+                      <span
+                        class="pdv-queue-row__name text-truncate"
+                        :title="displayQueueName(job)"
+                      >
+                        {{ displayQueueName(job) }}
+                      </span>
+                      <span
+                        v-if="job.estimatedTimeSeconds"
+                        class="text-caption text-medium-emphasis mr-2"
+                      >
+                        ~{{ formatQueueDuration(job.estimatedTimeSeconds) }}
+                      </span>
+                      <v-btn
+                        size="x-small"
+                        variant="text"
+                        icon
+                        title="Remove from queue"
+                        :loading="removingQueueId === job.id"
+                        @click="removeFromQueue(job)"
+                      >
+                        <v-icon size="14">close</v-icon>
+                      </v-btn>
+                    </li>
+                  </ol>
+                </template>
               </v-card-text>
             </v-card>
           </v-col>
@@ -960,6 +1062,7 @@ import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { notifyPrintJobsChanged } from '@/shared/print-jobs-invalidator.composable'
 import { derivePrinterAttention } from '@/shared/printer-attention.util'
+import FileThumbnailCell from '@/components/Files/FileThumbnailCell.vue'
 
 const props = defineProps<{ printerId: number }>()
 
@@ -1152,6 +1255,53 @@ async function processNextInQueue() {
   } finally {
     queueProcessingNext.value = false
   }
+}
+
+// Remove an individual job from the queue. The "Clear queue" button
+// nukes everything; this is the per-row escape hatch.
+const removingQueueId = ref<number | null>(null)
+async function removeFromQueue(job: QueuedJob) {
+  if (!props.printerId) return
+  removingQueueId.value = job.id
+  try {
+    await PrintQueueService.removeFromQueue(props.printerId, job.id)
+    await loadQueue()
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:removeFromQueue' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not remove from queue',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    removingQueueId.value = null
+  }
+}
+
+// Hero-card display helpers — kept inline since they're only used here
+// and the formatting differs slightly from the global PrintJobs view
+// (compact, no seconds component, fall back to file path when neither
+// a display name nor file name is present).
+function displayQueueName(job: QueuedJob): string {
+  return job.usbDisplayName ?? job.fileName ?? job.usbFilePath ?? '—'
+}
+function formatHeroFileSize(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+function formatQueueDuration(seconds: number): string {
+  if (!seconds || seconds < 60) return `${Math.round(seconds || 0)}s`
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+function formatFilamentGramsHero(v: number | number[] | null | undefined): string {
+  if (v == null) return ''
+  const total = Array.isArray(v) ? v.reduce((a, b) => a + (b ?? 0), 0) : v
+  if (!Number.isFinite(total) || total <= 0) return ''
+  return `${Math.round(total)} g`
 }
 
 async function clearQueue() {
@@ -1986,7 +2136,7 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-queue-list {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 8px 0 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2001,10 +2151,6 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.pdv-queue-row--starting {
-  background: rgba(var(--v-theme-primary), 0.1);
-}
-
 .pdv-queue-row__pos {
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.6);
@@ -2014,6 +2160,111 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-queue-row__name {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Hero card for the head of the queue — drops the "Next up" label, a
+   thumbnail, slice metadata, and a prominent "Send to print" button so
+   the operator's primary action is one click. */
+.pdv-hero {
+  position: relative;
+  border-radius: 8px;
+  padding: 14px 14px 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-primary), 0.07),
+    rgba(var(--v-theme-primary), 0.02)
+  );
+  border: 1px solid rgba(var(--v-theme-primary), 0.18);
+}
+
+.pdv-hero--starting {
+  border-color: rgba(var(--v-theme-primary), 0.55);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--v-theme-primary), 0.18),
+    rgba(var(--v-theme-primary), 0.05)
+  );
+}
+
+.pdv-hero__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: rgba(var(--v-theme-primary), 0.85);
+  margin-bottom: 8px;
+}
+
+.pdv-hero__body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pdv-hero__thumb {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pdv-hero__thumb :deep(img),
+.pdv-hero__thumb :deep(.v-img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pdv-hero__info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-hero__name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdv-hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.pdv-hero__stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.pdv-hero__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pdv-hero__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .pdv-chart {
