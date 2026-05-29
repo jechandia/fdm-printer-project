@@ -583,7 +583,7 @@
                           <v-icon size="16">sort</v-icon>
                         </v-btn>
                       </template>
-                      <v-list density="compact" min-width="180">
+                      <v-list density="compact" min-width="200">
                         <v-list-subheader>Sort by</v-list-subheader>
                         <v-list-item
                           v-for="opt in storageSortOptions"
@@ -602,6 +602,19 @@
                               color="primary"
                             >check</v-icon>
                           </template>
+                        </v-list-item>
+                        <v-divider />
+                        <v-list-subheader>Filter</v-list-subheader>
+                        <v-list-item
+                          @click="onlyCompatibleStorage = !onlyCompatibleStorage"
+                        >
+                          <template #prepend>
+                            <v-icon size="16">{{ onlyCompatibleStorage ? 'check_box' : 'check_box_outline_blank' }}</v-icon>
+                          </template>
+                          <v-list-item-title>Only compatible</v-list-item-title>
+                          <v-list-item-subtitle class="text-caption">
+                            Hide files this printer can't run
+                          </v-list-item-subtitle>
                         </v-list-item>
                       </v-list>
                     </v-menu>
@@ -638,6 +651,19 @@
                   </template>
                 </div>
 
+                <!-- Hidden-by-compat hint. When the printer-compat
+                     mask is on AND we know some files were dropped,
+                     show how many and offer an inline toggle so the
+                     operator isn't left wondering where files went. -->
+                <div
+                  v-if="storageHiddenByCompatCount > 0 && onlyCompatibleStorage"
+                  class="pdv-storage-hint"
+                >
+                  <v-icon size="14">filter_alt</v-icon>
+                  Hiding {{ storageHiddenByCompatCount }} file{{ storageHiddenByCompatCount === 1 ? '' : 's' }} this printer can't run.
+                  <a href="#" @click.prevent="onlyCompatibleStorage = false">Show all</a>
+                </div>
+
                 <div v-if="storageLoading" class="pdv-empty">
                   <v-progress-circular indeterminate size="20" width="2" />
                 </div>
@@ -647,7 +673,12 @@
                 >
                   <v-icon size="40" color="medium-emphasis">folder_off</v-icon>
                   <p class="text-body-2 text-medium-emphasis mt-2">
-                    {{ storageSearch ? 'No matches.' : 'No files in storage here.' }}
+                    <template v-if="storageSearch">No matches.</template>
+                    <template v-else-if="storageHiddenByCompatCount > 0 && onlyCompatibleStorage">
+                      No files compatible with this printer in this folder.
+                      <a href="#" class="pdv-crumb" @click.prevent="onlyCompatibleStorage = false">Show all</a>
+                    </template>
+                    <template v-else>No files in storage here.</template>
                   </p>
                 </div>
                 <div v-else class="pdv-storage-list">
@@ -706,7 +737,17 @@
                     class="pdv-storage-row pdv-storage-row--file"
                     @click="openStorageDetails(f)"
                   >
-                    <div class="pdv-storage-row__thumb">
+                    <!-- Thumbnail is its own click target: opens an
+                         image preview instead of the metadata dialog
+                         so the operator can inspect what the print
+                         looks like without the prop-list getting in
+                         the way. Stops propagation so the row's
+                         details handler doesn't also fire. -->
+                    <div
+                      class="pdv-storage-row__thumb pdv-storage-row__thumb--clickable"
+                      title="View thumbnail"
+                      @click.stop="openStorageThumb(f)"
+                    >
                       <FileThumbnailCell
                         :file-storage-id="f.fileStorageId"
                         :thumbnails="(f.thumbnails as any) || []"
@@ -1634,6 +1675,31 @@
             Add to queue
           </v-btn>
         </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Storage thumbnail preview. Pure image dialog — click on a
+         storage row's thumbnail to see the slice preview in full.
+         Click anywhere on the backdrop or the X to dismiss. -->
+    <v-dialog v-model="storageThumbOpen" max-width="720">
+      <v-card v-if="storageThumbFile" class="pdv-thumb-preview">
+        <div class="pdv-thumb-preview__head">
+          <span class="text-truncate" :title="displayFileName(storageThumbFile)">
+            {{ displayFileName(storageThumbFile) }}
+          </span>
+          <v-btn
+            icon="close"
+            variant="text"
+            size="small"
+            @click="storageThumbOpen = false"
+          />
+        </div>
+        <div class="pdv-thumb-preview__body">
+          <FileThumbnailCell
+            :file-storage-id="storageThumbFile.fileStorageId"
+            :thumbnails="(storageThumbFile.thumbnails as any) || []"
+          />
+        </div>
       </v-card>
     </v-dialog>
   </div>
@@ -2578,6 +2644,50 @@ function openStorageDetails(f: FileMetadata) {
   storageDetailsOpen.value = true
 }
 
+// Separate thumbnail preview — the row's body click opens the spec
+// sheet dialog above, but clicking the actual thumbnail should pop
+// the image in full (image preview, not metadata table).
+const storageThumbOpen = ref(false)
+const storageThumbFile = ref<FileMetadata | null>(null)
+function openStorageThumb(f: FileMetadata) {
+  if (!f.thumbnails?.length) {
+    // No thumbnail available — fall through to the details dialog so
+    // the row click still does something useful.
+    openStorageDetails(f)
+    return
+  }
+  storageThumbFile.value = f
+  storageThumbOpen.value = true
+}
+
+// Server already knows the compatibility matrix per printer (file
+// format vs printer type, plus slicer-target model vs firmware model).
+// `getAvailableFiles(printerId)` returns the filtered set — we cache
+// the storage-id Set and use it to mask incompatible rows out of the
+// rich-metadata listing.
+const compatibleFileIds = ref<Set<string> | null>(null)
+const onlyCompatibleStorage = ref(true)
+async function loadCompatibleFileIds() {
+  if (!props.printerId) {
+    compatibleFileIds.value = null
+    return
+  }
+  try {
+    const available = await PrintQueueService.getAvailableFiles(props.printerId, null, true)
+    const ids = new Set<string>()
+    for (const f of available?.files ?? []) {
+      if (f.fileStorageId) ids.add(f.fileStorageId)
+    }
+    compatibleFileIds.value = ids
+  } catch (e) {
+    // Fail open: if the compatibility probe errors out we'd rather
+    // show every file than hide the operator's library behind a
+    // mysterious empty state.
+    console.debug('Compatible-files probe failed; showing all storage files.', e)
+    compatibleFileIds.value = null
+  }
+}
+
 const storageBreadcrumb = computed(() =>
   storagePath.value ? storagePath.value.split('/').filter(Boolean) : [],
 )
@@ -2588,6 +2698,14 @@ const storageParentPath = computed<string | null>(() => {
   return parts.length ? parts.join('/') : null
 })
 const storageCount = computed(() => storageFolders.value.length + storageFiles.value.length)
+
+// How many files in the current folder are excluded by the compat
+// mask. Pure metric for the toolbar hint; not used to drive the list.
+const storageHiddenByCompatCount = computed(() => {
+  if (!compatibleFileIds.value) return 0
+  const set = compatibleFileIds.value
+  return storageFiles.value.filter((f) => !set.has(f.fileStorageId)).length
+})
 
 function storageMatches(name: string): boolean {
   if (!storageSearch.value) return true
@@ -2610,7 +2728,15 @@ const filteredStorageFiles = computed(() => {
   // Match against the friendly display name (what the row shows) so typing
   // a slice prefix narrows the list as expected. `fileName` is the UUID
   // stem for PrusaHero-uploaded files and would never match human input.
-  const filtered = storageFiles.value.filter((f) => storageMatches(displayFileName(f)))
+  let filtered = storageFiles.value.filter((f) => storageMatches(displayFileName(f)))
+  // Compatibility mask: hide files the server flagged as
+  // incompatible (wrong format for this printer type, or slicer
+  // target family ≠ this printer's family). User-togglable via the
+  // sort/filter menu so the operator can still see "all of them".
+  if (onlyCompatibleStorage.value && compatibleFileIds.value) {
+    const set = compatibleFileIds.value
+    filtered = filtered.filter((f) => set.has(f.fileStorageId))
+  }
   const sorted = [...filtered]
   switch (storageSortBy.value) {
     case 'name':
@@ -2711,7 +2837,14 @@ async function deleteStorageFolder(folder: FolderInfo) {
 async function loadStorage() {
   storageLoading.value = true
   try {
-    const response = await FileStorageService.listFiles(storagePath.value, false)
+    // Two parallel calls: the full metadata listing (drives the rows)
+    // and the compatibility probe (drives the "is this printable here?"
+    // mask). Run them concurrently so the panel paints as soon as the
+    // slower of the two returns.
+    const [response] = await Promise.all([
+      FileStorageService.listFiles(storagePath.value, false),
+      loadCompatibleFileIds(),
+    ])
     storageFolders.value = response.folders ?? []
     storageFiles.value = response.files ?? []
   } catch (e: any) {
@@ -3669,6 +3802,18 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   object-fit: contain;
 }
 
+/* Subtle highlight on the thumbnail when it's its own click target —
+   tells the operator it's an interactive element distinct from the
+   rest of the row. */
+.pdv-storage-row__thumb--clickable {
+  cursor: zoom-in;
+  outline: 1px solid transparent;
+  transition: outline-color 0.12s ease, transform 0.12s ease;
+}
+.pdv-storage-row__thumb--clickable:hover {
+  outline-color: rgba(var(--v-theme-primary), 0.55);
+}
+
 .pdv-storage-row__body {
   flex: 1 1 auto;
   min-width: 0;
@@ -3789,6 +3934,62 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 .pdv-storage-details__cell {
   min-width: 0;
+}
+
+/* ─── Storage hidden-by-compat hint ──────────────────────────── */
+
+.pdv-storage-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  padding: 4px 2px 8px;
+}
+.pdv-storage-hint a {
+  color: rgba(var(--v-theme-primary), 0.9);
+  text-decoration: none;
+  margin-left: 2px;
+}
+.pdv-storage-hint a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Storage thumbnail preview dialog ───────────────────────── */
+
+.pdv-thumb-preview {
+  background: #0A0E14;
+}
+.pdv-thumb-preview__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(var(--v-theme-primary), 0.14);
+}
+.pdv-thumb-preview__head > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pdv-thumb-preview__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-height: 360px;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0 8px,
+      transparent 8px 16px
+    );
+}
+.pdv-thumb-preview__body :deep(img),
+.pdv-thumb-preview__body :deep(.v-img) {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
 }
 
 .pdv-cam {
