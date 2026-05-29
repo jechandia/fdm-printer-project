@@ -54,12 +54,12 @@
           </div>
         </div>
 
-        <!-- Secondary actions — always visible at the top right. USB
-             toggle / enable / refresh / maintenance live here instead
-             of in a separate toolbar strip so the hero owns every
-             affordance for the printer. Primary actions (Pause/Cancel/
-             Jog) drop in beside the progress row when there's an
-             active print. -->
+        <!-- Top-right action cluster. Two groups separated by a thin
+             divider: secondary icons on the left (USB / toggle /
+             refresh / maintenance — always visible), primary action
+             chips on the right (Pause / Cancel / Jog — only when
+             there's an active print). Putting them on one line keeps
+             every affordance inside thumb's reach without stacking. -->
         <div class="pdv-hero-header__actions">
           <v-tooltip location="bottom" :text="isOperational ? 'Disconnect' : 'Connect'">
             <template #activator="{ props: tip }">
@@ -124,6 +124,47 @@
               </v-btn>
             </template>
           </v-tooltip>
+
+          <!-- Primary print actions — chips for Pause / Cancel / Jog,
+               kept inline with the secondary icons so they're a single
+               glance away. v-if conditions match the original block
+               (Pause/Resume when printing or paused, Cancel when
+               stoppable, Jog whenever there's an active print). -->
+          <template v-if="(isPrinting || isPaused) && currentJob?.progress">
+            <span class="pdv-hero-header__actions-sep" />
+            <v-btn
+              v-if="isPrinting || isPaused"
+              :disabled="!isOnline"
+              :color="isPaused ? 'success' : 'warning'"
+              size="x-small"
+              variant="flat"
+              :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
+              :loading="pauseToggleBusy"
+              @click="isPaused ? clickResumePrint() : clickPausePrint()"
+            >
+              {{ isPaused ? 'Resume' : 'Pause' }}
+            </v-btn>
+            <v-btn
+              v-if="isStoppable"
+              color="error"
+              size="x-small"
+              variant="flat"
+              prepend-icon="stop"
+              :loading="stopBusy"
+              @click="clickStopPrint"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              :disabled="!isOnline"
+              variant="tonal"
+              size="x-small"
+              prepend-icon="open_with"
+              @click="openControlDialog"
+            >
+              Jog
+            </v-btn>
+          </template>
         </div>
       </div>
 
@@ -193,48 +234,6 @@
           </div>
         </div>
 
-        <!-- Primary print actions — pinned to the right of the now-row
-             so the most-used controls during a print sit next to the
-             progress they're acting on. Pause/Resume swaps in place;
-             Cancel is destructive (red) and gets a confirm dialog;
-             Jog opens the existing transient control dialog. -->
-        <div class="pdv-hero-header__primary">
-          <v-btn
-            v-if="isPrinting || isPaused"
-            :disabled="!isOnline"
-            :color="isPaused ? 'success' : 'warning'"
-            size="small"
-            variant="flat"
-            :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
-            :loading="pauseToggleBusy"
-            block
-            @click="isPaused ? clickResumePrint() : clickPausePrint()"
-          >
-            {{ isPaused ? 'Resume' : 'Pause' }}
-          </v-btn>
-          <v-btn
-            v-if="isStoppable"
-            color="error"
-            size="small"
-            variant="flat"
-            prepend-icon="stop"
-            :loading="stopBusy"
-            block
-            @click="clickStopPrint"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            :disabled="!isOnline"
-            variant="tonal"
-            size="small"
-            prepend-icon="open_with"
-            block
-            @click="openControlDialog"
-          >
-            Jog
-          </v-btn>
-        </div>
       </div>
 
       <!-- Compact-mode summary — single short line shown only when the
@@ -3197,10 +3196,10 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   gap: 12px;
 }
 
-/* Secondary actions: USB / enable / refresh / maintenance. Lives at
-   the top-right of the hero, always visible (not gated on isPrinting).
-   Subtle border separates it from the identity block when the buttons
-   are sitting near temperature numbers later. */
+/* Top-right action cluster. Holds two groups separated by a thin
+   vertical rule: the always-visible secondary icons (USB / enable /
+   refresh / maintenance) and the print-time primary chips (Pause /
+   Cancel / Jog) when there's an active print. */
 .pdv-hero-header__actions {
   display: flex;
   align-items: center;
@@ -3210,21 +3209,18 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
 }
 
-/* Primary print actions inside the now-row. Vertical stack so the
-   buttons sit aligned with the thumbnail's edge regardless of how
-   tall the slice info gets. Each button uses `block` so they share
-   width — easier to scan than mismatched widths. */
-.pdv-hero-header__primary {
-  flex: 0 0 140px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-}
-.pdv-hero-header__primary :deep(.v-btn) {
-  width: 100%;
+/* Thin vertical rule between the secondary icons and the primary
+   chips. Gives the two groups breathing room without taking horizontal
+   space the way an extra wrapper would. */
+.pdv-hero-header__actions-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
 }
 
 .pdv-hero-header__identity {
