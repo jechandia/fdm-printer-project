@@ -41,12 +41,22 @@
       </v-chip>
       <v-spacer />
       <v-btn
+        :disabled="!isOnline"
+        variant="text"
+        size="small"
+        prepend-icon="open_with"
+        @click="openControlDialog"
+      >
+        Jog &amp; home
+      </v-btn>
+      <v-btn
         variant="text"
         size="small"
         prepend-icon="open_in_new"
         :href="printer.printerURL"
         target="_blank"
         rel="noopener"
+        class="ml-1"
       >
         Open PrusaLink
       </v-btn>
@@ -65,9 +75,10 @@
 
     <v-tabs v-model="tab" class="pdv-tabs">
       <v-tab value="overview">Overview</v-tab>
+      <v-tab value="files">Files</v-tab>
       <v-tab value="history">History</v-tab>
       <v-tab value="maintenance">Maintenance</v-tab>
-      <v-tab value="info">Info</v-tab>
+      <v-tab value="settings">Settings</v-tab>
     </v-tabs>
 
     <v-tabs-window v-model="tab" class="pdv-window">
@@ -189,6 +200,112 @@
             </v-card>
           </v-col>
         </v-row>
+      </v-tabs-window-item>
+
+      <!-- ========== FILES ========== -->
+      <v-tabs-window-item value="files">
+        <div class="pa-3">
+          <div class="d-flex align-center mb-2">
+            <v-btn-toggle
+              v-model="filesSource"
+              density="comfortable"
+              color="primary"
+              mandatory
+              variant="outlined"
+            >
+              <v-btn size="small" value="usb">Printer USB</v-btn>
+              <v-btn size="small" value="storage">File storage</v-btn>
+            </v-btn-toggle>
+            <span
+              v-if="filesBreadcrumb.length > 0"
+              class="ml-3 text-body-2 text-medium-emphasis"
+            >
+              <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
+              <template v-for="(seg, i) in filesBreadcrumb" :key="i">
+                /
+                <a
+                  href="#"
+                  class="pdv-crumb"
+                  @click.prevent="navigateFilesTo(filesBreadcrumb.slice(0, i + 1).join('/'))"
+                >{{ seg }}</a>
+              </template>
+            </span>
+            <v-spacer />
+            <v-btn
+              size="small"
+              variant="text"
+              prepend-icon="folder_open"
+              @click="openSideNavExplorer"
+            >
+              Full file browser
+            </v-btn>
+          </div>
+
+          <div v-if="filesLoading" class="pdv-empty">
+            <v-progress-circular indeterminate size="20" width="2" />
+          </div>
+          <div
+            v-else-if="!filesData || (filesData.dirs.length === 0 && filesData.files.length === 0)"
+            class="pdv-empty"
+          >
+            <v-icon size="48" color="medium-emphasis">folder_off</v-icon>
+            <p class="text-body-2 text-medium-emphasis mt-2">No files here.</p>
+            <v-btn
+              v-if="filesPath"
+              size="small"
+              variant="text"
+              class="mt-2"
+              @click="navigateFilesTo(parentPathOf(filesPath))"
+            >
+              ↑ Up one level
+            </v-btn>
+          </div>
+          <v-list v-else density="comfortable" class="pdv-files">
+            <v-list-item
+              v-if="filesPath"
+              prepend-icon="arrow_upward"
+              title=".."
+              @click="navigateFilesTo(parentPathOf(filesPath))"
+            />
+            <v-list-item
+              v-for="d in filesData.dirs"
+              :key="`d:${d.path}`"
+              prepend-icon="folder"
+              :title="leafName(d.path)"
+              @click="navigateFilesTo(d.path)"
+            />
+            <v-list-item
+              v-for="f in filesData.files"
+              :key="`f:${f.path}`"
+              prepend-icon="insert_drive_file"
+              :title="leafName(f.path)"
+              :subtitle="fileSubtitle(f)"
+            >
+              <template #append>
+                <v-btn
+                  v-if="filesSource === 'usb'"
+                  icon
+                  variant="text"
+                  size="small"
+                  title="Start print"
+                  :disabled="!isOnline"
+                  @click.stop="startUsbPrint(f.path)"
+                >
+                  <v-icon size="18">play_arrow</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="small"
+                  title="Delete"
+                  @click.stop="deleteFile(f.path)"
+                >
+                  <v-icon size="18">delete_outline</v-icon>
+                </v-btn>
+              </template>
+            </v-list-item>
+          </v-list>
+        </div>
       </v-tabs-window-item>
 
       <!-- ========== HISTORY ========== -->
@@ -386,9 +503,23 @@
         </div>
       </v-tabs-window-item>
 
-      <!-- ========== INFO ========== -->
-      <v-tabs-window-item value="info">
+      <!-- ========== SETTINGS ========== -->
+      <v-tabs-window-item value="settings">
         <div class="pa-3">
+          <div class="d-flex align-center mb-3">
+            <span class="text-overline text-medium-emphasis">Printer configuration</span>
+            <v-spacer />
+            <v-btn
+              size="small"
+              color="primary"
+              variant="tonal"
+              prepend-icon="edit"
+              @click="openEditDialog"
+            >
+              Edit printer
+            </v-btn>
+          </div>
+
           <v-row dense>
             <v-col cols="12" md="6">
               <v-card variant="tonal" class="pdv-card">
@@ -441,34 +572,56 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import { usePrinterStore } from '@/store/printer.store'
 import { usePrinterStateStore } from '@/store/printer-state.store'
 import { PrintJobService, PrintJobDto } from '@/backend/print-job.service'
 import { PrintQueueService, QueuedJob } from '@/backend/print-queue.service'
 import { PrinterMaintenanceLogService } from '@/backend/printer-maintenance-log.service'
+import { PrinterRemoteFileService } from '@/backend/printer-remote-file.service'
 import type { PrinterMaintenanceLog } from '@/models/printers/printer-maintenance-log.model'
+import type { FilesDto, FileDto } from '@/models/printers/printer-file.model'
 import { usePrinterTileThumbnailQuery } from '@/queries/printer-tile-thumbnail.query'
 import { interpretStates } from '@/shared/printer-state.constants'
 import { useDialog } from '@/shared/dialog.composable'
 import { DialogName } from '@/components/Generic/Dialogs/dialog.constants'
 import { useSnackbar } from '@/shared/snackbar.composable'
+import { useFileExplorer } from '@/shared/file-explorer.composable'
+import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 
 const props = defineProps<{ printerId: number }>()
 
 const router = useRouter()
+const route = useRoute()
 const printerStore = usePrinterStore()
 const printerStateStore = usePrinterStateStore()
 const maintenanceDialog = useDialog(DialogName.PrinterMaintenanceDialog)
+const controlDialog = useDialog(DialogName.PrinterControlDialog)
+const addOrUpdateDialog = useDialog(DialogName.AddOrUpdatePrinterDialog)
+const fileExplorer = useFileExplorer()
 const snackbar = useSnackbar()
 
-const tab = ref<'overview' | 'history' | 'maintenance' | 'info'>('overview')
+type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'settings'
+const TAB_NAMES: TabName[] = ['overview', 'files', 'history', 'maintenance', 'settings']
+const tab = ref<TabName>('overview')
+
 // Track the open tab in the URL so reload / share keeps you on the same panel.
 onMounted(() => {
   const params = new URLSearchParams(window.location.search)
-  const t = params.get('tab')
-  if (t === 'history' || t === 'maintenance' || t === 'info') tab.value = t
+  const t = params.get('tab') as TabName | null
+  if (t && TAB_NAMES.includes(t)) tab.value = t
+
+  // Tile's Move/Home button funnels through here with ?autoOpen=control
+  // — open the jog dialog as soon as the view mounts, then strip the
+  // param so a refresh doesn't re-pop the dialog.
+  if (route.query.autoOpen === 'control') {
+    void openControlDialog()
+    const next = new URLSearchParams(window.location.search)
+    next.delete('autoOpen')
+    const qs = next.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${qs ? '?' + qs : ''}`)
+  }
 })
 watch(tab, (next) => {
   const params = new URLSearchParams(window.location.search)
@@ -477,6 +630,16 @@ watch(tab, (next) => {
   const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
   window.history.replaceState(null, '', url)
 })
+
+async function openControlDialog() {
+  if (!printer.value) return
+  await controlDialog.openDialog({ printer: printer.value })
+}
+
+async function openEditDialog() {
+  if (!props.printerId) return
+  await addOrUpdateDialog.openDialog({ id: props.printerId })
+}
 
 // ── Printer + live state ──
 const printer = computed(() => printerStore.printer(props.printerId))
@@ -692,6 +855,115 @@ function actualHeight(d: ChartPoint): number {
   return Math.round((d.actualSeconds / max) * (chartHeight - 4))
 }
 
+// ── Files (printer USB + file storage) ──
+const filesSource = ref<'usb' | 'storage'>('usb')
+const filesPath = ref<string>('')
+const filesData = ref<FilesDto | null>(null)
+const filesLoading = ref(false)
+
+const filesBreadcrumb = computed(() =>
+  filesPath.value ? filesPath.value.split('/').filter(Boolean) : [],
+)
+
+function leafName(p: string): string {
+  return p.split(/[/\\]/).filter(Boolean).pop() ?? p
+}
+function parentPathOf(p: string): string {
+  const parts = p.split('/').filter(Boolean)
+  parts.pop()
+  return parts.join('/')
+}
+function fileSubtitle(f: FileDto): string {
+  const parts: string[] = []
+  if (typeof f.size === 'number') {
+    if (f.size < 1024) parts.push(`${f.size} B`)
+    else if (f.size < 1024 * 1024) parts.push(`${(f.size / 1024).toFixed(0)} KB`)
+    else parts.push(`${(f.size / 1024 / 1024).toFixed(1)} MB`)
+  }
+  if (typeof f.date === 'number') {
+    parts.push(new Date(f.date * 1000).toLocaleDateString())
+  }
+  return parts.join(' · ')
+}
+
+async function loadFiles() {
+  if (!props.printerId) return
+  filesLoading.value = true
+  try {
+    if (filesSource.value === 'usb') {
+      const data = await PrinterRemoteFileService.getFiles(
+        props.printerId,
+        false,
+        filesPath.value || undefined,
+      )
+      filesData.value = data
+    } else {
+      // File storage isn't per-printer — show a placeholder pointing the
+      // user to the global file explorer for that source. Keeps the tab
+      // useful without duplicating the entire file-storage controller's
+      // listing surface here.
+      filesData.value = { dirs: [], files: [] }
+    }
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not load files',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+    filesData.value = { dirs: [], files: [] }
+  } finally {
+    filesLoading.value = false
+  }
+}
+
+function navigateFilesTo(path: string) {
+  filesPath.value = path
+  void loadFiles()
+}
+
+async function startUsbPrint(path: string) {
+  if (!props.printerId) return
+  try {
+    await PrinterRemoteFileService.selectAndPrintFile(props.printerId, path, true)
+    snackbar.openInfoMessage({ title: 'Print started', subtitle: leafName(path) })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not start print',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
+}
+
+async function deleteFile(path: string) {
+  if (!props.printerId) return
+  const ok = await confirmDialog({
+    title: 'Delete file?',
+    message: leafName(path),
+    confirmText: 'Delete',
+    severity: 'danger',
+  })
+  if (!ok) return
+  try {
+    await PrinterRemoteFileService.deleteFileOrFolder(props.printerId, path)
+    snackbar.openInfoMessage({ title: 'File deleted', subtitle: leafName(path) })
+    await loadFiles()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not delete',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
+}
+
+function openSideNavExplorer() {
+  if (!printer.value) return
+  fileExplorer.openFileExplorer(printer.value)
+}
+
+watch(filesSource, () => {
+  filesPath.value = ''
+  void loadFiles()
+})
+
 // ── Maintenance ──
 const maintenanceLogs = ref<PrinterMaintenanceLog[]>([])
 const maintenanceLoading = ref(false)
@@ -768,12 +1040,18 @@ watch(
   },
   { immediate: true },
 )
-// Refresh queue + maintenance when entering their respective tabs, so
-// the user sees fresh data even if they sat on Overview for a while.
-watch(tab, (next) => {
-  if (next === 'overview') void loadQueue()
-  if (next === 'maintenance') void loadMaintenance()
-})
+// Refresh queue / maintenance / files when entering their respective
+// tabs, so the user sees fresh data even if they sat on Overview for a
+// while.
+watch(
+  tab,
+  (next) => {
+    if (next === 'overview') void loadQueue()
+    if (next === 'maintenance') void loadMaintenance()
+    if (next === 'files') void loadFiles()
+  },
+  { immediate: true },
+)
 
 // ── Formatters ──
 function formatDuration(seconds: number | null | undefined): string {
@@ -972,5 +1250,19 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-info dd {
   margin: 0;
   word-break: break-all;
+}
+
+.pdv-crumb {
+  color: rgba(var(--v-theme-primary), 0.85);
+  text-decoration: none;
+}
+.pdv-crumb:hover {
+  text-decoration: underline;
+}
+
+.pdv-files {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
 }
 </style>

@@ -381,7 +381,6 @@ import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { useRouter } from 'vue-router'
 import { PrintersService } from '@/backend'
 import { usePrinterStore } from '@/store/printer.store'
-import { DialogName } from '@/components/Generic/Dialogs/dialog.constants'
 import { useSettingsStore } from '@/store/settings.store'
 import { useFloorStore } from '@/store/floor.store'
 import { interpretStates } from '@/shared/printer-state.constants'
@@ -389,13 +388,11 @@ import { usePrinterStateStore } from '@/store/printer-state.store'
 import { PrinterDto } from '@/models/printers/printer.model'
 import { useSnackbar } from '@/shared/snackbar.composable'
 import { PrintQueueService } from '@/backend/print-queue.service'
-import { useDialog } from '@/shared/dialog.composable'
 import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/queries/printer-tile-thumbnail.query'
 import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
 import { useQueryClient } from '@tanstack/vue-query'
 import PrinterTilePreviewDialog from './PrinterTilePreviewDialog.vue'
 import PrinterDetailDialog from './PrinterDetailDialog.vue'
-import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
 import logoPng from '@/assets/logo.png'
@@ -415,9 +412,6 @@ const printerStore = usePrinterStore()
 const printerStateStore = usePrinterStateStore()
 const floorStore = useFloorStore()
 const settingsStore = useSettingsStore()
-const controlDialog = useDialog(DialogName.PrinterControlDialog)
-const addOrUpdateDialog = useDialog(DialogName.AddOrUpdatePrinterDialog)
-const fileExplorer = useFileExplorer()
 const snackbar = useSnackbar()
 const router = useRouter()
 
@@ -756,8 +750,12 @@ const clickResumePrint = async () => {
 }
 
 const clickInfo = () => {
+  // Folder button now navigates to the per-printer detail view's Files
+  // tab — the file-explorer side nav stays accessible from there for
+  // deeper work, but the tile no longer pops it directly. Keeps every
+  // tile entry point flowing through the same hub.
   if (!props.printer) return
-  fileExplorer.openFileExplorer(props.printer)
+  void router.push({ path: `/printer/${props.printer.id}`, query: { tab: 'files' } })
 }
 
 const clickRefreshSocket = async () => {
@@ -787,7 +785,7 @@ const onDragStart = (ev: DragEvent) => {
 const clickOpenSettings = () => {
   const printer = props.printer
   if (!printer) return
-  addOrUpdateDialog.openDialog({ id: printer.id })
+  void router.push({ path: `/printer/${printer.id}`, query: { tab: 'settings' } })
 }
 
 const clickShowCurrentJob = async () => {
@@ -798,19 +796,21 @@ const clickShowCurrentJob = async () => {
     })
     return
   }
-
-  await router.push({
-    path: '/jobs',
-    query: { printerId: printerId.value.toString() }
-  })
+  // Briefcase now opens the printer detail view on its History tab,
+  // which is what the user actually wants for "show me this printer's
+  // jobs" — `/jobs?printerId=X` was a global page filtered down.
+  await router.push({ path: `/printer/${printerId.value}`, query: { tab: 'history' } })
 }
 
 const clickOpenPrinterControlDialog = async () => {
   if (!printerId.value || !props.printer) {
     throw new Error('PrinterId not set, cant open dialog')
   }
-
-  await controlDialog.openDialog({ printer: props.printer })
+  // Move/home stays a transient dialog (jog controls aren't the kind of
+  // thing you read — you press and walk to the printer). But we route
+  // through the detail view first so the rest of the printer context
+  // (current job, queue) is visible while jogging.
+  void router.push({ path: `/printer/${printerId.value}`, query: { autoOpen: 'control' } })
 }
 
 const clickQuickStop = async () => {
