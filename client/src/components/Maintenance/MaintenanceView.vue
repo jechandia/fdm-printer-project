@@ -231,12 +231,14 @@ const counts = computed(() => {
 async function load() {
   isLoading.value = true
   try {
-    // Paged endpoint — pageSize 200 covers a single workshop's history
-    // without needing a UI pager. If a farm outgrows that, we can split
-    // into infinite-scroll later; not worth the complexity today.
+    // Paged endpoint — pageSize 100 covers a single workshop's history
+    // without needing a UI pager. (Server caps at 500; staying well
+    // under that leaves room for a future tightening.) If a farm
+    // outgrows it, split into infinite-scroll later — not worth the
+    // complexity today.
     const response = await PrinterMaintenanceLogService.listLogs({
       page: 1,
-      pageSize: 200,
+      pageSize: 100,
     })
     logs.value = response.logs ?? []
   } catch (e: any) {
