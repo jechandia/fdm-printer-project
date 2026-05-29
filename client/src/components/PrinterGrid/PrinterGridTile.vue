@@ -750,12 +750,15 @@ const clickResumePrint = async () => {
 }
 
 const clickInfo = () => {
-  // Folder button now navigates to the per-printer detail view's Files
-  // tab — the file-explorer side nav stays accessible from there for
-  // deeper work, but the tile no longer pops it directly. Keeps every
-  // tile entry point flowing through the same hub.
+  // Folder button now navigates to the per-printer detail view's Print
+  // tab, with the right column's sub-tab pre-selected to Internal Storage
+  // (the printer's USB browser). Keeps every tile entry point flowing
+  // through the same hub.
   if (!props.printer) return
-  void router.push({ path: `/printer/${props.printer.id}`, query: { tab: 'files' } })
+  void router.push({
+    path: `/printer/${props.printer.id}`,
+    query: { tab: 'overview', storage: 'internal' }
+  })
 }
 
 const clickRefreshSocket = async () => {

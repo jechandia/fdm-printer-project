@@ -310,8 +310,7 @@
     </v-alert>
 
     <v-tabs v-model="tab" class="pdv-tabs">
-      <v-tab value="overview">Queue</v-tab>
-      <v-tab value="files">Files</v-tab>
+      <v-tab value="overview">Print</v-tab>
       <v-tab value="history">History</v-tab>
       <v-tab value="maintenance">Maintenance</v-tab>
       <v-tab v-if="cameras.length > 0" value="cameras">
@@ -329,10 +328,14 @@
     </v-tabs>
 
     <v-tabs-window v-model="tab" class="pdv-window">
-      <!-- ========== QUEUE (tab key stays `overview` so existing URL
-           query strings — e.g. ?tab=overview — keep working) ========== -->
+      <!-- ========== PRINT (tab key stays `overview` so existing URL
+           query strings — e.g. ?tab=overview — keep working).
+           Two-column layout: Queue on the left, Storage source on the
+           right (sub-tabbed Storage / Internal Storage). ========== -->
       <v-tabs-window-item value="overview">
         <div class="pdv-content">
+          <v-row dense>
+          <v-col cols="12" md="6">
           <!-- SECTION: Queue. "Next up" hero gets the visual weight,
                tail items list compactly below. -->
           <section class="pdv-section">
@@ -522,39 +525,60 @@
               </v-card-text>
             </v-card>
           </section>
+          </v-col>
 
-          <!-- SECTION: Storage — file-storage files ready to queue. -->
+          <v-col cols="12" md="6">
+          <!-- Right column: Storage sources. Sub-tabs for Storage
+               (file-storage, default) and Internal Storage (printer USB).
+               Switching between them swaps the body without losing
+               toolbar / search state on either side. -->
           <section class="pdv-section">
             <header class="pdv-section__header">
-              <span class="pdv-section__label">Storage</span>
-              <span
-                v-if="storageCount > 0"
-                class="pdv-section__hint"
-              >{{ storageCount }} item{{ storageCount === 1 ? '' : 's' }}</span>
-              <v-spacer />
-              <v-text-field
-                v-model="storageSearch"
-                prepend-inner-icon="search"
-                placeholder="Filter…"
+              <v-tabs
+                v-model="storageTab"
                 density="compact"
-                hide-details
-                clearable
-                style="max-width: 220px;"
-                class="mr-2"
-              />
-              <v-btn
-                icon
-                variant="text"
-                size="x-small"
-                density="comfortable"
-                title="Refresh"
-                @click="loadStorage"
+                color="primary"
+                hide-slider
+                class="pdv-substabs"
               >
-                <v-icon size="16">refresh</v-icon>
-              </v-btn>
+                <v-tab value="storage">Storage</v-tab>
+                <v-tab value="internal">Internal Storage</v-tab>
+              </v-tabs>
             </header>
-            <v-card class="pdv-card" variant="outlined">
-              <v-card-text>
+
+            <v-tabs-window v-model="storageTab">
+
+              <!-- ── Storage (file-storage) ── -->
+              <v-tabs-window-item value="storage">
+                <v-card variant="outlined" class="pdv-card">
+                  <v-card-title class="d-flex align-center flex-wrap py-2" style="gap: 8px;">
+                    <span
+                      v-if="storageCount > 0"
+                      class="text-caption text-medium-emphasis"
+                    >{{ storageCount }} item{{ storageCount === 1 ? '' : 's' }}</span>
+                    <v-spacer />
+                    <v-text-field
+                      v-model="storageSearch"
+                      prepend-inner-icon="search"
+                      placeholder="Filter…"
+                      density="compact"
+                      hide-details
+                      clearable
+                      style="max-width: 200px;"
+                    />
+                    <v-btn
+                      icon
+                      variant="text"
+                      size="x-small"
+                      density="comfortable"
+                      title="Refresh"
+                      @click="loadStorage"
+                    >
+                      <v-icon size="16">refresh</v-icon>
+                    </v-btn>
+                  </v-card-title>
+                  <v-divider />
+                  <v-card-text>
                 <!-- Breadcrumb -->
                 <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
                   <a href="#" class="pdv-crumb" @click.prevent="navigateStorageTo(null)">root</a>
@@ -625,199 +649,204 @@
                 </v-list>
               </v-card-text>
             </v-card>
-          </section>
-        </div>
-      </v-tabs-window-item>
+          </v-tabs-window-item>
 
-      <!-- ========== FILES ========== -->
-      <v-tabs-window-item value="files">
-        <div class="pdv-content">
-          <section class="pdv-section">
-            <header class="pdv-section__header">
-              <span class="pdv-section__label">Printer USB</span>
-              <span
-                v-if="filesPath"
-                class="pdv-section__hint"
-              >/{{ filesPath }}</span>
-            </header>
-          <!-- Toolbar -->
-          <div class="d-flex align-center flex-wrap mb-2" style="gap: 8px;">
-            <v-text-field
-              v-model="filesSearch"
-              prepend-inner-icon="search"
-              placeholder="Filter…"
-              density="compact"
-              hide-details
-              clearable
-              style="max-width: 240px;"
-            />
-            <v-btn
-              size="small"
-              variant="tonal"
-              color="primary"
-              prepend-icon="upload"
-              :disabled="!isOnline || filesUploading"
-              :loading="filesUploading"
-              @click="filesInputRef?.click()"
-            >
-              Upload
-            </v-btn>
-            <input
-              ref="filesInputRef"
-              type="file"
-              accept=".gcode,.bgcode,.3mf"
-              style="display: none;"
-              @change="onFilesPicked"
-            >
-            <v-btn
-              size="small"
-              variant="tonal"
-              prepend-icon="create_new_folder"
-              :disabled="!isOnline"
-              @click="newFolderOpen = true"
-            >
-              New folder
-            </v-btn>
-            <v-spacer />
-          </div>
-
-          <!-- Breadcrumb row -->
-          <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
-            <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
-            <template v-for="(seg, i) in filesBreadcrumb" :key="i">
-              <span class="mx-1">/</span>
-              <a
-                href="#"
-                class="pdv-crumb"
-                @click.prevent="navigateFilesTo(filesBreadcrumb.slice(0, i + 1).join('/'))"
-              >{{ seg }}</a>
-            </template>
-          </div>
-
-          <!-- Body -->
-          <div v-if="filesLoading" class="pdv-empty">
-            <v-progress-circular indeterminate size="20" width="2" />
-          </div>
-          <div
-            v-else-if="!filesData || (filteredDirs.length === 0 && filteredFiles.length === 0)"
-            class="pdv-empty"
-          >
-            <v-icon size="48" color="medium-emphasis">folder_off</v-icon>
-            <p class="text-body-2 text-medium-emphasis mt-2">
-              {{ filesSearch ? 'No matches for that filter.' : 'No files here.' }}
-            </p>
-            <v-btn
-              v-if="filesPath && !filesSearch"
-              size="small"
-              variant="text"
-              class="mt-2"
-              @click="navigateFilesTo(parentPathOf(filesPath))"
-            >
-              ↑ Up one level
-            </v-btn>
-          </div>
-          <v-list v-else density="comfortable" class="pdv-files">
-            <v-list-item
-              v-if="filesPath && !filesSearch"
-              prepend-icon="arrow_upward"
-              title=".."
-              @click="navigateFilesTo(parentPathOf(filesPath))"
-            />
-            <v-list-item
-              v-for="d in filteredDirs"
-              :key="`d:${d.path}`"
-              prepend-icon="folder"
-              :title="leafName(d.path)"
-              @click="navigateFilesTo(d.path)"
-            >
-              <template #append>
+          <!-- ── Internal Storage (printer USB) ── -->
+          <v-tabs-window-item value="internal">
+            <v-card variant="outlined" class="pdv-card">
+              <v-card-title class="d-flex align-center flex-wrap py-2" style="gap: 8px;">
+                <span
+                  v-if="filesPath"
+                  class="text-caption text-medium-emphasis text-truncate"
+                  :title="`/${filesPath}`"
+                >/{{ filesPath }}</span>
+                <v-spacer />
+                <v-text-field
+                  v-model="filesSearch"
+                  prepend-inner-icon="search"
+                  placeholder="Filter…"
+                  density="compact"
+                  hide-details
+                  clearable
+                  style="max-width: 200px;"
+                />
                 <v-btn
                   icon
                   variant="text"
-                  size="small"
-                  title="Delete folder"
-                  @click.stop="deleteFile(d.path)"
+                  size="x-small"
+                  density="comfortable"
+                  title="Upload"
+                  :disabled="!isOnline || filesUploading"
+                  :loading="filesUploading"
+                  @click="filesInputRef?.click()"
                 >
-                  <v-icon size="18">delete_outline</v-icon>
+                  <v-icon size="16">upload</v-icon>
                 </v-btn>
-              </template>
-            </v-list-item>
-            <v-list-item
-              v-for="f in filteredFiles"
-              :key="`f:${f.path}`"
-              prepend-icon="insert_drive_file"
-              :title="leafName(f.path)"
-              :subtitle="fileSubtitle(f)"
-            >
-              <template #append>
-                <v-btn
-                  icon
-                  variant="text"
-                  size="small"
-                  title="Add to queue"
-                  :disabled="!isOnline || addingToQueuePath === f.path"
-                  :loading="addingToQueuePath === f.path"
-                  @click.stop="addUsbToQueue(f)"
+                <input
+                  ref="filesInputRef"
+                  type="file"
+                  accept=".gcode,.bgcode,.3mf"
+                  style="display: none;"
+                  @change="onFilesPicked"
                 >
-                  <v-icon size="18" color="success">add</v-icon>
-                </v-btn>
                 <v-btn
                   icon
                   variant="text"
-                  size="small"
-                  title="Start print now"
+                  size="x-small"
+                  density="comfortable"
+                  title="New folder"
                   :disabled="!isOnline"
-                  @click.stop="startUsbPrint(f.path)"
+                  @click="newFolderOpen = true"
                 >
-                  <v-icon size="18">play_arrow</v-icon>
+                  <v-icon size="16">create_new_folder</v-icon>
                 </v-btn>
-                <v-btn
-                  icon
-                  variant="text"
-                  size="small"
-                  title="Delete"
-                  @click.stop="deleteFile(f.path)"
-                >
-                  <v-icon size="18">delete_outline</v-icon>
-                </v-btn>
-              </template>
-            </v-list-item>
-          </v-list>
+              </v-card-title>
+              <v-divider />
+              <v-card-text>
+                <!-- Breadcrumb -->
+                <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
+                  <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
+                  <template v-for="(seg, i) in filesBreadcrumb" :key="i">
+                    <span class="mx-1">/</span>
+                    <a
+                      href="#"
+                      class="pdv-crumb"
+                      @click.prevent="navigateFilesTo(filesBreadcrumb.slice(0, i + 1).join('/'))"
+                    >{{ seg }}</a>
+                  </template>
+                </div>
 
-        <!-- New-folder inline dialog. Local v-dialog instead of opening a
-             global one — keeps the flow scoped to this tab and the
-             cancel/close behaviour predictable. -->
-        <v-dialog v-model="newFolderOpen" max-width="360">
-          <v-card>
-            <v-card-title class="text-subtitle-1">Create folder</v-card-title>
-            <v-card-text>
-              <v-text-field
-                v-model="newFolderName"
-                label="Folder name"
-                density="compact"
-                autofocus
-                @keyup.enter="createNewFolder"
-              />
-              <p class="text-caption text-medium-emphasis">
-                Created under {{ filesPath || 'root' }}
-              </p>
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer />
-              <v-btn variant="text" @click="newFolderOpen = false">Cancel</v-btn>
-              <v-btn
-                color="primary"
-                variant="tonal"
-                :disabled="!newFolderName.trim()"
-                :loading="newFolderSubmitting"
-                @click="createNewFolder"
-              >
-                Create
-              </v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
+                <!-- Body -->
+                <div v-if="filesLoading" class="pdv-empty">
+                  <v-progress-circular indeterminate size="20" width="2" />
+                </div>
+                <div
+                  v-else-if="!filesData || (filteredDirs.length === 0 && filteredFiles.length === 0)"
+                  class="pdv-empty"
+                >
+                  <v-icon size="40" color="medium-emphasis">folder_off</v-icon>
+                  <p class="text-body-2 text-medium-emphasis mt-2">
+                    {{ filesSearch ? 'No matches for that filter.' : 'No files here.' }}
+                  </p>
+                  <v-btn
+                    v-if="filesPath && !filesSearch"
+                    size="small"
+                    variant="text"
+                    class="mt-2"
+                    @click="navigateFilesTo(parentPathOf(filesPath))"
+                  >
+                    ↑ Up one level
+                  </v-btn>
+                </div>
+                <v-list v-else density="comfortable" class="pdv-files">
+                  <v-list-item
+                    v-if="filesPath && !filesSearch"
+                    prepend-icon="arrow_upward"
+                    title=".."
+                    @click="navigateFilesTo(parentPathOf(filesPath))"
+                  />
+                  <v-list-item
+                    v-for="d in filteredDirs"
+                    :key="`d:${d.path}`"
+                    prepend-icon="folder"
+                    :title="leafName(d.path)"
+                    @click="navigateFilesTo(d.path)"
+                  >
+                    <template #append>
+                      <v-btn
+                        icon
+                        variant="text"
+                        size="small"
+                        title="Delete folder"
+                        @click.stop="deleteFile(d.path)"
+                      >
+                        <v-icon size="18">delete_outline</v-icon>
+                      </v-btn>
+                    </template>
+                  </v-list-item>
+                  <v-list-item
+                    v-for="f in filteredFiles"
+                    :key="`f:${f.path}`"
+                    prepend-icon="insert_drive_file"
+                    :title="leafName(f.path)"
+                    :subtitle="fileSubtitle(f)"
+                  >
+                    <template #append>
+                      <v-btn
+                        icon
+                        variant="text"
+                        size="small"
+                        title="Add to queue"
+                        :disabled="!isOnline || addingToQueuePath === f.path"
+                        :loading="addingToQueuePath === f.path"
+                        @click.stop="addUsbToQueue(f)"
+                      >
+                        <v-icon size="18" color="success">add</v-icon>
+                      </v-btn>
+                      <v-btn
+                        icon
+                        variant="text"
+                        size="small"
+                        title="Start print now"
+                        :disabled="!isOnline"
+                        @click.stop="startUsbPrint(f.path)"
+                      >
+                        <v-icon size="18">play_arrow</v-icon>
+                      </v-btn>
+                      <v-btn
+                        icon
+                        variant="text"
+                        size="small"
+                        title="Delete"
+                        @click.stop="deleteFile(f.path)"
+                      >
+                        <v-icon size="18">delete_outline</v-icon>
+                      </v-btn>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+
+            <!-- New-folder inline dialog. Scoped to this sub-tab — the
+                 cancel/close path stays local instead of opening a
+                 global confirm. -->
+            <v-dialog v-model="newFolderOpen" max-width="360">
+              <v-card>
+                <v-card-title class="text-subtitle-1">Create folder</v-card-title>
+                <v-card-text>
+                  <v-text-field
+                    v-model="newFolderName"
+                    label="Folder name"
+                    density="compact"
+                    autofocus
+                    @keyup.enter="createNewFolder"
+                  />
+                  <p class="text-caption text-medium-emphasis">
+                    Created under {{ filesPath || 'root' }}
+                  </p>
+                </v-card-text>
+                <v-card-actions>
+                  <v-spacer />
+                  <v-btn variant="text" @click="newFolderOpen = false">Cancel</v-btn>
+                  <v-btn
+                    color="primary"
+                    variant="tonal"
+                    :disabled="!newFolderName.trim()"
+                    :loading="newFolderSubmitting"
+                    @click="createNewFolder"
+                  >
+                    Create
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-dialog>
+          </v-tabs-window-item>
+
+            </v-tabs-window>
           </section>
+          </v-col>
+          </v-row>
         </div>
       </v-tabs-window-item>
 
@@ -1327,9 +1356,15 @@ const controlDialog = useDialog(DialogName.PrinterControlDialog)
 const addOrUpdateDialog = useDialog(DialogName.AddOrUpdatePrinterDialog)
 const snackbar = useSnackbar()
 
-type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'cameras' | 'settings'
-const TAB_NAMES: TabName[] = ['overview', 'files', 'history', 'maintenance', 'cameras', 'settings']
+type TabName = 'overview' | 'history' | 'maintenance' | 'cameras' | 'settings'
+const TAB_NAMES: TabName[] = ['overview', 'history', 'maintenance', 'cameras', 'settings']
 const tab = ref<TabName>('overview')
+
+// Right column of the Print tab toggles between Storage (file-storage,
+// the default — what queueable files live in) and Internal Storage
+// (printer USB browser). Default lands on Storage because that's the
+// list the operator queues from most often.
+const storageTab = ref<'storage' | 'internal'>('storage')
 
 // Compact-mode hero: collapses to a single line + thin progress bar
 // once the user has scrolled past a threshold. The full layout is
@@ -1356,6 +1391,11 @@ onMounted(() => {
   const t = params.get('tab') as TabName | null
   if (t && TAB_NAMES.includes(t)) tab.value = t
 
+  // Tile's folder button funnels through here with ?storage=internal to
+  // pre-select the Internal Storage sub-tab inside the Print tab.
+  const s = params.get('storage')
+  if (s === 'storage' || s === 'internal') storageTab.value = s
+
   // Tile's Move/Home button funnels through here with ?autoOpen=control
   // — open the jog dialog as soon as the view mounts, then strip the
   // param so a refresh doesn't re-pop the dialog.
@@ -1371,6 +1411,13 @@ watch(tab, (next) => {
   const params = new URLSearchParams(window.location.search)
   if (next === 'overview') params.delete('tab')
   else params.set('tab', next)
+  const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
+  window.history.replaceState(null, '', url)
+})
+watch(storageTab, (next) => {
+  const params = new URLSearchParams(window.location.search)
+  if (next === 'storage') params.delete('storage')
+  else params.set('storage', next)
   const url = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
   window.history.replaceState(null, '', url)
 })
@@ -2372,11 +2419,17 @@ watch(
       void loadStorage()
     }
     if (next === 'maintenance') void loadMaintenance()
-    if (next === 'files') void loadFiles()
     if (next === 'cameras') void loadCameras()
   },
   { immediate: true },
 )
+// Lazy-load the USB listing: it only matters once the operator clicks
+// over to the Internal Storage sub-tab inside the Print tab. Storage
+// (file-storage) is the default sub-tab and loads via the overview
+// watcher above.
+watch(storageTab, (next) => {
+  if (next === 'internal') void loadFiles()
+})
 
 // ── Formatters ──
 function formatDuration(seconds: number | null | undefined): string {
