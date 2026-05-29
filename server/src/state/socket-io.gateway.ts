@@ -94,4 +94,9 @@ export const IO_MESSAGES = {
   // background upload to the user as a toast instead of letting them stare
   // at a chip that silently flips back to QUEUED.
   QueueEvent: "printQueue.event",
+  // Terminal-state events for an active print: completed / failed /
+  // cancelled. Used client-side to fire browser notifications so the
+  // operator hears about a 24-hour print finishing without having the
+  // dashboard tab in focus.
+  PrintJobEvent: "printJob.event",
 };

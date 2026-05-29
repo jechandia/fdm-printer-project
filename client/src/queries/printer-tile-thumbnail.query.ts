@@ -11,9 +11,8 @@ export const usePrinterTileThumbnailQuery = (
   return useQuery({
     queryKey: [printerTileThumbnailQueryKey, printerId],
     queryFn: async () => {
-      if (!printerId.value) return "";
-      return PrinterRemoteFileService.getThumbnail(printerId.value)
-        .then((r) => r.thumbnailBase64 || "");
+      if (!printerId.value) return null;
+      return PrinterRemoteFileService.getThumbnail(printerId.value);
     },
     // Defaulting to enabled — the tile gates rendering on isOnline +
     // thumbnail.length anyway, and there's no callsite today that wants to

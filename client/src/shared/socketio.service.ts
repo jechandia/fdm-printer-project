@@ -13,6 +13,7 @@ import { useEventBus } from "@vueuse/core";
 import { useDebugSocketStore } from "@/store/debug-socket.store";
 import { useOverlayStore } from "@/store/overlay.store";
 import { notifyPrinterThumbnailChanged } from "@/shared/printer-thumbnail-invalidator.composable";
+import { useBrowserNotifications } from "@/shared/notifications.composable";
 
 enum IO_MESSAGES {
   Update = "update",
@@ -21,6 +22,7 @@ enum IO_MESSAGES {
   // in sync; we don't have a shared types package between the two yet.
   PrinterThumbnailChanged = "printer.thumbnailChanged",
   QueueEvent = "printQueue.event",
+  PrintJobEvent = "printJob.event",
 }
 
 interface QueueEventPayload {
@@ -33,6 +35,15 @@ interface QueueEventPayload {
 interface PrinterThumbnailChangedPayload {
   printerId: number;
   jobId?: number;
+}
+
+interface PrintJobEventPayload {
+  kind: "completed" | "failed" | "cancelled";
+  jobId: number;
+  printerId: number;
+  fileName: string;
+  reason?: string;
+  actualTimeSeconds?: number;
 }
 
 let appSocketIO: Socket | null = null;
@@ -283,6 +294,45 @@ export class SocketIoService {
     appSocketIO.on(IO_MESSAGES.PrinterThumbnailChanged, (data: PrinterThumbnailChangedPayload) => {
       if (typeof data?.printerId === "number") {
         notifyPrinterThumbnailChanged({ printerId: data.printerId, jobId: data.jobId });
+      }
+    });
+
+    // Print lifecycle terminal transitions → browser notification AND
+    // toast. The user might be away from the dashboard tab when a 24h
+    // print finishes; the notification gets the operator's attention even
+    // with the tab in the background. Toast covers the foreground case.
+    const notifications = useBrowserNotifications();
+    appSocketIO.on(IO_MESSAGES.PrintJobEvent, (data: PrintJobEventPayload) => {
+      const printerName = this.printerStore.printer(data.printerId)?.name ?? `printer ${data.printerId}`;
+      if (data.kind === "completed") {
+        const minutes = data.actualTimeSeconds ? Math.round(data.actualTimeSeconds / 60) : null;
+        const body = minutes ? `${data.fileName} · ${minutes} min` : data.fileName;
+        notifications.notify(`${printerName} · Print complete`, {
+          body,
+          tag: `printJob-${data.jobId}`,
+        });
+        this.snackbar.openInfoMessage({
+          title: `${printerName} finished printing`,
+          subtitle: data.fileName,
+        });
+      } else if (data.kind === "failed") {
+        notifications.notify(`${printerName} · Print failed`, {
+          body: data.reason ?? data.fileName,
+          tag: `printJob-${data.jobId}`,
+        });
+        this.snackbar.openErrorMessage({
+          title: `${printerName}: print failed`,
+          subtitle: data.reason ?? data.fileName,
+        });
+      } else if (data.kind === "cancelled") {
+        // Cancelled is a deliberate user action; skip the high-priority
+        // browser notification to avoid spamming the operator with their
+        // own clicks, but still toast for visibility.
+        this.snackbar.openInfoMessage({
+          title: `${printerName}: print cancelled`,
+          subtitle: data.fileName,
+          warning: true,
+        });
       }
     });
   }

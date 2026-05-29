@@ -123,7 +123,12 @@
 
         <!-- Body: thumbnail + info -->
         <div class="pg-tile__body">
-          <div class="pg-tile__thumb">
+          <div
+            class="pg-tile__thumb"
+            :class="{ 'pg-tile__thumb--clickable': thumbnail?.length }"
+            :title="thumbnail?.length ? 'View larger preview' : undefined"
+            @click.stop.prevent="thumbnail?.length && (previewOpen = true)"
+          >
             <v-img
               v-if="isOnline && thumbnail?.length"
               :src="'data:image/png;base64,' + (thumbnail ?? '')"
@@ -335,6 +340,16 @@
         </div>
       </template>
     </v-card>
+
+    <PrinterTilePreviewDialog
+      v-model="previewOpen"
+      :printer-name="printer?.name"
+      :file-name="previewFileName"
+      :thumbnail="thumbnail"
+      :estimated-seconds="previewEstimatedSeconds"
+      :remaining-seconds="timeRemainingSeconds"
+      :metadata="previewMetadata"
+    />
   </div>
 </template>
 
@@ -358,6 +373,7 @@ import { useDialog } from '@/shared/dialog.composable'
 import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/queries/printer-tile-thumbnail.query'
 import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
 import { useQueryClient } from '@tanstack/vue-query'
+import PrinterTilePreviewDialog from './PrinterTilePreviewDialog.vue'
 import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
@@ -394,7 +410,8 @@ const tileIconThumbnailSize = computed(() =>
   largeTilesEnabled.value ? '80px' : '40px'
 )
 
-const { data: thumbnail } = usePrinterTileThumbnailQuery(printerId)
+const { data: thumbnailRecord } = usePrinterTileThumbnailQuery(printerId)
+const thumbnail = computed(() => thumbnailRecord.value?.thumbnailBase64 ?? '')
 
 // Refetch the per-printer thumbnail when the server signals it changed
 // (a new print just started). Without this, the TanStack cache stays
@@ -405,6 +422,13 @@ useOnPrinterThumbnailChanged((event) => {
     queryClient.invalidateQueries({ queryKey: [printerTileThumbnailQueryKey, printerId] })
   }
 })
+
+const previewOpen = ref(false)
+const previewMetadata = computed(() => thumbnailRecord.value?.job?.metadata ?? null)
+const previewEstimatedSeconds = computed(() => thumbnailRecord.value?.job?.estimatedSeconds ?? null)
+const previewFileName = computed(
+  () => thumbnailRecord.value?.fileName ?? thumbnailRecord.value?.job?.fileName ?? currentPrintingFilePath.value ?? null,
+)
 
 const isOnline = computed(() =>
   printerId.value ? printerStateStore.isApiResponding(printerId.value) : false
@@ -901,6 +925,15 @@ const selectPrinterPosition = async () => {
 .pg-tile__thumb--placeholder {
   opacity: 0.25;
   filter: grayscale(100%);
+}
+
+.pg-tile__thumb--clickable {
+  cursor: zoom-in;
+  transition: transform 120ms ease;
+}
+
+.pg-tile__thumb--clickable:hover {
+  transform: scale(1.04);
 }
 
 .pg-tile__info {

@@ -46,6 +46,22 @@ export class SocketIoTask {
     this.eventEmitter2.on("printer.thumbnailChanged", (data) =>
       this.socketIoGateway.send(IO_MESSAGES.PrinterThumbnailChanged, data),
     );
+
+    // Print-lifecycle terminal transitions — fanned out so the client can
+    // raise a browser notification when an unattended print finishes. The
+    // raw payloads from PrintJobService already carry `jobId`, `printerId`,
+    // `fileName`, plus per-kind fields (`actualTimeSeconds` for completed,
+    // `reason` for failed). The client just needs the kind discriminator,
+    // hence the spread + literal `kind:` here.
+    this.eventEmitter2.on("printJob.completed", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.PrintJobEvent, { kind: "completed", ...data }),
+    );
+    this.eventEmitter2.on("printJob.failed", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.PrintJobEvent, { kind: "failed", ...data }),
+    );
+    this.eventEmitter2.on("printJob.cancelled", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.PrintJobEvent, { kind: "cancelled", ...data }),
+    );
   }
 
   async run() {
