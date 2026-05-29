@@ -768,7 +768,7 @@
                     v-for="f in filteredFiles"
                     :key="`f:${f.path}`"
                     prepend-icon="insert_drive_file"
-                    :title="leafName(f.path)"
+                    :title="usbDisplayLabel(f)"
                     :subtitle="fileSubtitle(f)"
                   >
                     <template #append>
@@ -2026,10 +2026,18 @@ function matchesSearch(name: string): boolean {
   return name.toLowerCase().includes(filesSearch.value.toLowerCase())
 }
 const filteredDirs = computed(() => (filesData.value?.dirs ?? []).filter((d) => matchesSearch(leafName(d.path))))
-const filteredFiles = computed(() => (filesData.value?.files ?? []).filter((f) => matchesSearch(leafName(f.path))))
+const filteredFiles = computed(() => (filesData.value?.files ?? []).filter((f) => matchesSearch(usbDisplayLabel(f))))
 
 function leafName(p: string): string {
   return p.split(/[/\\]/).filter(Boolean).pop() ?? p
+}
+// Prefer the friendly name the server resolved against file-storage so
+// PrusaHero-uploaded files don't surface their `<fileStorageId>.gcode`
+// UUID basename. Falls back to the literal printer-side filename for
+// anything we didn't put there ourselves (e.g. files dropped onto the
+// USB stick directly).
+function usbDisplayLabel(f: FileDto): string {
+  return f.displayName?.trim() || leafName(f.path)
 }
 function parentPathOf(p: string): string {
   const parts = p.split('/').filter(Boolean)
@@ -2125,9 +2133,11 @@ function navigateFilesTo(path: string) {
 
 async function startUsbPrint(path: string) {
   if (!props.printerId) return
+  const known = filesData.value?.files.find((f) => f.path === path)
+  const label = known ? usbDisplayLabel(known) : leafName(path)
   try {
     await PrinterRemoteFileService.selectAndPrintFile(props.printerId, path, true)
-    snackbar.openInfoMessage({ title: 'Print started', subtitle: leafName(path) })
+    snackbar.openInfoMessage({ title: 'Print started', subtitle: label })
   } catch (e: any) {
     snackbar.openErrorMessage({
       title: 'Could not start print',
@@ -2143,16 +2153,17 @@ const addingToQueuePath = ref<string | null>(null)
 async function addUsbToQueue(f: FileDto) {
   if (!props.printerId) return
   addingToQueuePath.value = f.path
+  const label = usbDisplayLabel(f)
   try {
     await PrintQueueService.createJobFromUsbFile(props.printerId, {
       filePath: f.path,
-      displayName: leafName(f.path),
+      displayName: label,
       fileSize: typeof f.size === 'number' ? f.size : undefined,
       addToQueue: true,
     })
     snackbar.openInfoMessage({
       title: 'Added to queue',
-      subtitle: leafName(f.path),
+      subtitle: label,
     })
     // Refresh both the global jobs list and the on-page queue card so
     // the operator sees the new row immediately.
@@ -2170,16 +2181,21 @@ async function addUsbToQueue(f: FileDto) {
 
 async function deleteFile(path: string) {
   if (!props.printerId) return
+  // Surface the friendly name in the confirm/snackbar so the operator
+  // recognizes the file. Folders only carry a literal path, but a known
+  // file entry in filesData may have a resolved displayName.
+  const known = filesData.value?.files.find((f) => f.path === path)
+  const label = known ? usbDisplayLabel(known) : leafName(path)
   const ok = await confirmDialog({
     title: 'Delete file?',
-    message: leafName(path),
+    message: label,
     confirmText: 'Delete',
     severity: 'danger',
   })
   if (!ok) return
   try {
     await PrinterRemoteFileService.deleteFileOrFolder(props.printerId, path)
-    snackbar.openInfoMessage({ title: 'File deleted', subtitle: leafName(path) })
+    snackbar.openInfoMessage({ title: 'File deleted', subtitle: label })
     await loadFiles()
   } catch (e: any) {
     snackbar.openErrorMessage({
