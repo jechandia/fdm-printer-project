@@ -152,33 +152,54 @@
       </div>
     </div>
 
-    <!-- ─── Active upload progress ──────────────────────────── -->
+    <!-- ─── Upload progress (single aggregate bar while uploading) ── -->
     <v-card
-      v-if="uploadProgress.length > 0"
+      v-if="uploading && uploadProgress.length > 0"
       class="files-upload-progress"
       elevation="0"
       border
     >
       <div class="files-upload-progress__title">
         <v-icon size="small">upload</v-icon>
-        Uploading {{ uploadProgress.length }} file{{ uploadProgress.length === 1 ? '' : 's' }}
+        Uploading {{ uploadDoneCount }} / {{ uploadProgress.length }}
+        <span v-if="uploadErroredCount > 0" class="text-error ml-2">· {{ uploadErroredCount }} failed</span>
       </div>
       <v-progress-linear
-        v-for="(progress, index) in uploadProgress"
-        :key="index"
-        :model-value="progress.percent"
-        :color="progress.error ? 'error' : 'primary'"
-        height="22"
+        :model-value="uploadProgress.length ? (uploadDoneCount / uploadProgress.length) * 100 : 0"
+        color="primary"
+        height="8"
         rounded
-        class="files-upload-progress__bar"
-      >
-        <template #default>
-          <span class="text-caption font-weight-medium">
-            {{ progress.fileName }} —
-            {{ progress.error || `${progress.percent}%` }}
-          </span>
-        </template>
-      </v-progress-linear>
+      />
+      <div v-if="currentUploadName" class="files-upload-progress__current text-caption text-truncate">
+        {{ currentUploadName }}
+      </div>
+    </v-card>
+
+    <!-- ─── Upload result (persists until dismissed when there are issues) ── -->
+    <v-card
+      v-else-if="!uploading && uploadErrored.length > 0"
+      class="files-upload-progress"
+      elevation="0"
+      border
+    >
+      <div class="files-upload-progress__title">
+        <v-icon size="small" color="warning">report_problem</v-icon>
+        Upload finished — {{ uploadOkCount }} uploaded, {{ uploadErrored.length }} not uploaded
+        <v-spacer />
+        <v-btn icon size="x-small" variant="text" @click="uploadProgress = []">
+          <v-icon>close</v-icon>
+          <v-tooltip activator="parent" location="top">Dismiss</v-tooltip>
+        </v-btn>
+      </div>
+      <div class="files-upload-progress__errors">
+        <div v-for="(e, i) in uploadErrored" :key="i" class="files-upload-progress__error">
+          <v-icon size="x-small" :color="e.error === 'Already exists' ? 'warning' : 'error'" class="flex-shrink-0">
+            {{ e.error === 'Already exists' ? 'content_copy' : 'error' }}
+          </v-icon>
+          <span class="text-truncate">{{ e.fileName }}</span>
+          <span class="files-upload-progress__error-tag text-caption">{{ e.error }}</span>
+        </div>
+      </div>
     </v-card>
 
     <!-- ─── Files table ─────────────────────────────────────── -->
@@ -650,6 +671,24 @@ const uploadProgress = ref<
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const analyzingFiles = ref<Set<string>>(new Set())
+
+// Aggregate upload progress (one bar for the whole batch instead of one per
+// file) and a persistent error list so results don't vanish on big uploads.
+const uploadDoneCount = computed(() => uploadProgress.value.filter((p) => p.percent === 100).length)
+const uploadErrored = computed(() => uploadProgress.value.filter((p) => p.error))
+const uploadErroredCount = computed(() => uploadErrored.value.length)
+const uploadOkCount = computed(() => uploadProgress.value.filter((p) => p.percent === 100 && !p.error).length)
+const currentUploadName = computed(() => uploadProgress.value.find((p) => p.percent < 100)?.fileName ?? '')
+
+// Auto-dismiss the progress card only when everything succeeded; otherwise
+// keep the result (with the error list) until the user closes it.
+const maybeClearUpload = () => {
+  if (uploadProgress.value.every((p) => !p.error)) {
+    setTimeout(() => {
+      uploadProgress.value = []
+    }, 1500)
+  }
+}
 
 const totalCount = computed(() => files.value.length)
 
@@ -1330,9 +1369,7 @@ const uploadItems = async (items: UploadItem[]) => {
     }
   }
 
-  setTimeout(() => {
-    uploadProgress.value = []
-  }, 1500)
+  maybeClearUpload()
 }
 
 // Replace each conflicting file: delete the existing one, then re-upload the
@@ -1370,9 +1407,7 @@ const overwriteConflicts = async (
   )
   await loadFiles()
   await loadFolderTree()
-  setTimeout(() => {
-    uploadProgress.value = []
-  }, 1500)
+  maybeClearUpload()
 }
 
 const openQueueDialog = (file: FileMetadata) => {
@@ -1574,12 +1609,35 @@ const openQueueDialog = (file: FileMetadata) => {
   color: rgba(var(--v-theme-on-surface), 0.85);
 }
 
-.files-upload-progress__bar {
-  margin-bottom: 6px;
+.files-upload-progress__current {
+  margin-top: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
-.files-upload-progress__bar:last-child {
-  margin-bottom: 0;
+.files-upload-progress__errors {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  border-radius: 6px;
+}
+
+.files-upload-progress__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.files-upload-progress__error:last-child {
+  border-bottom: none;
+}
+
+.files-upload-progress__error-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 /* ─── File rows ──────────────────────────────────────────────── */
