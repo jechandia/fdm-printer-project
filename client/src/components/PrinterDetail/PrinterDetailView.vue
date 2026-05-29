@@ -737,17 +737,13 @@
                     class="pdv-storage-row pdv-storage-row--file"
                     @click="openStorageDetails(f)"
                   >
-                    <!-- Thumbnail is its own click target: opens an
-                         image preview instead of the metadata dialog
-                         so the operator can inspect what the print
-                         looks like without the prop-list getting in
-                         the way. Stops propagation so the row's
-                         details handler doesn't also fire. -->
-                    <div
-                      class="pdv-storage-row__thumb pdv-storage-row__thumb--clickable"
-                      title="View thumbnail"
-                      @click.stop="openStorageThumb(f)"
-                    >
+                    <!-- Thumbnail behaves like the rest of the row:
+                         clicking opens the file-details dialog. The
+                         underlying FileThumbnailCell's own click is
+                         suppressed (pointer-events: none on the inner
+                         layer) so we don't open the global thumbnail
+                         viewer at the same time. -->
+                    <div class="pdv-storage-row__thumb">
                       <FileThumbnailCell
                         :file-storage-id="f.fileStorageId"
                         :thumbnails="(f.thumbnails as any) || []"
@@ -815,6 +811,9 @@
                         </span>
                       </div>
                     </div>
+                    <!-- Per-row actions. Delete lives in the details
+                         dialog only — keeps the row scannable and the
+                         destructive action behind one more click. -->
                     <div class="pdv-storage-row__actions" @click.stop>
                       <v-tooltip location="top" text="View details">
                         <template #activator="{ props: ap }">
@@ -843,21 +842,6 @@
                             @click.stop="addStorageToQueue(f)"
                           >
                             <v-icon size="18" color="success">add</v-icon>
-                          </v-btn>
-                        </template>
-                      </v-tooltip>
-                      <v-tooltip location="top" text="Delete">
-                        <template #activator="{ props: ap }">
-                          <v-btn
-                            v-bind="ap"
-                            icon
-                            variant="text"
-                            size="x-small"
-                            density="comfortable"
-                            :loading="deletingStorageId === f.fileStorageId"
-                            @click.stop="deleteStorageFile(f)"
-                          >
-                            <v-icon size="18">delete_outline</v-icon>
                           </v-btn>
                         </template>
                       </v-tooltip>
@@ -1678,30 +1662,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- Storage thumbnail preview. Pure image dialog — click on a
-         storage row's thumbnail to see the slice preview in full.
-         Click anywhere on the backdrop or the X to dismiss. -->
-    <v-dialog v-model="storageThumbOpen" max-width="720">
-      <v-card v-if="storageThumbFile" class="pdv-thumb-preview">
-        <div class="pdv-thumb-preview__head">
-          <span class="text-truncate" :title="displayFileName(storageThumbFile)">
-            {{ displayFileName(storageThumbFile) }}
-          </span>
-          <v-btn
-            icon="close"
-            variant="text"
-            size="small"
-            @click="storageThumbOpen = false"
-          />
-        </div>
-        <div class="pdv-thumb-preview__body">
-          <FileThumbnailCell
-            :file-storage-id="storageThumbFile.fileStorageId"
-            :thumbnails="(storageThumbFile.thumbnails as any) || []"
-          />
-        </div>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 
@@ -2642,22 +2602,6 @@ const storageDetailsFile = ref<FileMetadata | null>(null)
 function openStorageDetails(f: FileMetadata) {
   storageDetailsFile.value = f
   storageDetailsOpen.value = true
-}
-
-// Separate thumbnail preview — the row's body click opens the spec
-// sheet dialog above, but clicking the actual thumbnail should pop
-// the image in full (image preview, not metadata table).
-const storageThumbOpen = ref(false)
-const storageThumbFile = ref<FileMetadata | null>(null)
-function openStorageThumb(f: FileMetadata) {
-  if (!f.thumbnails?.length) {
-    // No thumbnail available — fall through to the details dialog so
-    // the row click still does something useful.
-    openStorageDetails(f)
-    return
-  }
-  storageThumbFile.value = f
-  storageThumbOpen.value = true
 }
 
 // Server already knows the compatibility matrix per printer (file
@@ -3802,16 +3746,13 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   object-fit: contain;
 }
 
-/* Subtle highlight on the thumbnail when it's its own click target —
-   tells the operator it's an interactive element distinct from the
-   rest of the row. */
-.pdv-storage-row__thumb--clickable {
-  cursor: zoom-in;
-  outline: 1px solid transparent;
-  transition: outline-color 0.12s ease, transform 0.12s ease;
-}
-.pdv-storage-row__thumb--clickable:hover {
-  outline-color: rgba(var(--v-theme-primary), 0.55);
+/* FileThumbnailCell registers its own click handler that opens the
+   global FileThumbnailViewer dialog. We don't want that here — the row
+   itself drives the click and opens the file-details dialog. Disabling
+   pointer events on the cell makes its click invisible while keeping
+   the image fully rendered. */
+.pdv-storage-row__thumb :deep(*) {
+  pointer-events: none;
 }
 
 .pdv-storage-row__body {
@@ -3880,22 +3821,32 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   padding-top: 12px;
 }
 
+/* Stack the hero thumbnail on top and the stats underneath so the
+   slice preview gets the full dialog width instead of competing with
+   the side panel — fills the available space and reads as the focal
+   point of the dialog. */
 .pdv-storage-details__top {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .pdv-storage-details__thumb {
-  flex-shrink: 0;
-  width: 160px;
-  height: 160px;
-  border-radius: 6px;
+  width: 100%;
+  height: 360px;
+  border-radius: 8px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0 10px,
+      rgba(255, 255, 255, 0.005) 10px 20px
+    ),
+    rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid rgba(var(--v-theme-primary), 0.16);
 }
 .pdv-storage-details__thumb :deep(img),
 .pdv-storage-details__thumb :deep(.v-img) {
@@ -3905,7 +3856,7 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 
 .pdv-storage-details__primary {
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
 }
 
@@ -3955,42 +3906,6 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   text-decoration: underline;
 }
 
-/* ─── Storage thumbnail preview dialog ───────────────────────── */
-
-.pdv-thumb-preview {
-  background: #0A0E14;
-}
-.pdv-thumb-preview__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  border-bottom: 1px solid rgba(var(--v-theme-primary), 0.14);
-}
-.pdv-thumb-preview__head > span {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.pdv-thumb-preview__body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  min-height: 360px;
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.02) 0 8px,
-      transparent 8px 16px
-    );
-}
-.pdv-thumb-preview__body :deep(img),
-.pdv-thumb-preview__body :deep(.v-img) {
-  max-width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-}
 
 .pdv-cam {
   width: 100%;
