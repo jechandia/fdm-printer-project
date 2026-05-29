@@ -9,7 +9,7 @@
   </div>
 
   <div v-else class="pdv">
-    <!-- Top header: identity + live state + back/refresh -->
+    <!-- Top header: identity + live state -->
     <div class="pdv-header">
       <v-btn
         icon="arrow_back"
@@ -17,7 +17,9 @@
         size="small"
         @click="router.back()"
       />
-      <h2 class="pdv-title text-h6 ml-2">{{ printer.name }}</h2>
+      <h2 class="pdv-title text-h6 ml-2 text-truncate" :title="printer.name">
+        {{ printer.name }}
+      </h2>
       <v-chip
         :color="stateChipColor"
         size="small"
@@ -41,37 +43,151 @@
       </v-chip>
       <v-spacer />
       <v-btn
-        :disabled="!isOnline"
-        variant="text"
-        size="small"
-        prepend-icon="open_with"
-        @click="openControlDialog"
-      >
-        Jog &amp; home
-      </v-btn>
-      <v-btn
         variant="text"
         size="small"
         prepend-icon="open_in_new"
         :href="printer.printerURL"
         target="_blank"
         rel="noopener"
-        class="ml-1"
       >
-        Open PrusaLink
+        PrusaLink
       </v-btn>
+    </div>
+
+    <!-- Action toolbar — same affordances the FileExplorerSideNav
+         exposes (Pause/Cancel during a print, then icon-only USB
+         toggle / enable toggle / refresh / maintenance / settings),
+         so the per-printer page is a strict superset of the dialog. -->
+    <div class="pdv-toolbar">
+      <template v-if="isPrinting || isPaused">
+        <v-btn
+          :disabled="!isOnline"
+          :color="isPaused ? 'success' : 'warning'"
+          size="small"
+          variant="flat"
+          :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
+          :loading="pauseToggleBusy"
+          @click="isPaused ? clickResumePrint() : clickPausePrint()"
+        >
+          {{ isPaused ? 'Resume' : 'Pause' }}
+        </v-btn>
+      </template>
       <v-btn
-        v-if="!printer.enabled"
+        v-if="isStoppable"
+        color="error"
+        size="small"
+        variant="flat"
+        prepend-icon="stop"
+        :loading="stopBusy"
+        @click="clickStopPrint"
+      >
+        Cancel
+      </v-btn>
+
+      <v-divider
+        v-if="isPrinting || isPaused || isStoppable"
+        vertical
+        class="mx-1"
+      />
+
+      <v-btn
+        :disabled="!printer.enabled || !isOnline"
+        :color="isOperational ? 'warning' : 'success'"
+        variant="text"
+        size="small"
+        density="comfortable"
+        icon
+        @click="togglePrinterConnection"
+      >
+        <v-icon>{{ isOperational ? 'usb_off' : 'usb' }}</v-icon>
+        <v-tooltip activator="parent" location="bottom">
+          {{ isOperational ? 'Disconnect' : 'Connect' }}
+        </v-tooltip>
+      </v-btn>
+
+      <v-btn
+        :color="printer.enabled ? 'default' : 'success'"
+        variant="text"
+        size="small"
+        density="comfortable"
+        icon
+        @click="toggleEnabled"
+      >
+        <v-icon>{{ printer.enabled ? 'toggle_on' : 'toggle_off' }}</v-icon>
+        <v-tooltip activator="parent" location="bottom">
+          {{ printer.enabled ? 'Disable' : 'Enable' }}
+        </v-tooltip>
+      </v-btn>
+
+      <v-btn
+        variant="text"
+        size="small"
+        density="comfortable"
+        icon
+        @click="refreshSocketState"
+      >
+        <v-icon>refresh</v-icon>
+        <v-tooltip activator="parent" location="bottom">Refresh connection</v-tooltip>
+      </v-btn>
+
+      <v-btn
+        :color="isUnderMaintenance ? 'warning' : undefined"
+        variant="text"
+        size="small"
+        density="comfortable"
+        icon
+        @click="toggleMaintenance"
+      >
+        <v-icon>{{ isUnderMaintenance ? 'build_circle' : 'build' }}</v-icon>
+        <v-tooltip activator="parent" location="bottom">
+          {{ isUnderMaintenance ? 'End maintenance' : 'Start maintenance' }}
+        </v-tooltip>
+      </v-btn>
+
+      <v-btn
+        :disabled="!isOnline"
+        variant="text"
+        size="small"
+        density="comfortable"
+        icon
+        @click="openControlDialog"
+      >
+        <v-icon>open_with</v-icon>
+        <v-tooltip activator="parent" location="bottom">Jog &amp; home</v-tooltip>
+      </v-btn>
+
+      <v-spacer />
+
+      <v-btn
+        v-if="!printer.enabled && printer.disabledReason"
         variant="tonal"
         size="small"
         color="warning"
         prepend-icon="construction"
-        class="ml-2"
         disabled
       >
-        Under maintenance
+        {{ printer.disabledReason }}
       </v-btn>
     </div>
+
+    <!-- Attention banner — same priority order the side nav uses. -->
+    <v-alert
+      v-if="printerAttention.needsAttention"
+      :type="attentionAlertType"
+      :icon="printerAttention.icon"
+      variant="tonal"
+      density="compact"
+      class="pdv-attention"
+    >
+      <div class="font-weight-bold">{{ printerAttention.title }}</div>
+      <div class="text-body-2">{{ printerAttention.message }}</div>
+      <div
+        v-if="printerAttention.hint"
+        class="text-caption text-medium-emphasis mt-1"
+      >
+        {{ printerAttention.hint }}
+      </div>
+    </v-alert>
 
     <v-tabs v-model="tab" class="pdv-tabs">
       <v-tab value="overview">Overview</v-tab>
@@ -159,7 +275,7 @@
           <v-col cols="12" md="5">
             <!-- Queue card -->
             <v-card class="pdv-card" variant="tonal">
-              <v-card-title class="text-subtitle-1 d-flex align-center">
+              <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap">
                 <v-icon class="mr-2" color="primary">queue</v-icon>
                 Queue
                 <v-chip
@@ -171,6 +287,41 @@
                 >
                   {{ queue.length }}
                 </v-chip>
+                <v-spacer />
+                <v-btn
+                  v-if="queue.length > 0"
+                  size="x-small"
+                  variant="tonal"
+                  color="success"
+                  prepend-icon="play_arrow"
+                  :disabled="!isOnline || !isOperational || queueProcessingNext"
+                  :loading="queueProcessingNext"
+                  @click="processNextInQueue"
+                >
+                  Process next
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
+                  density="comfortable"
+                  class="ml-1"
+                  title="Refresh queue"
+                  @click="loadQueue"
+                >
+                  <v-icon size="16">refresh</v-icon>
+                </v-btn>
+                <v-btn
+                  v-if="queue.length > 0"
+                  icon
+                  variant="text"
+                  size="x-small"
+                  density="comfortable"
+                  title="Clear queue"
+                  @click="clearQueue"
+                >
+                  <v-icon size="16" color="error">delete_sweep</v-icon>
+                </v-btn>
               </v-card-title>
               <v-divider />
               <v-card-text>
@@ -178,7 +329,11 @@
                   <v-progress-circular indeterminate size="20" width="2" />
                 </div>
                 <div v-else-if="queue.length === 0" class="pdv-empty">
-                  <p class="text-body-2 text-medium-emphasis">Queue is empty.</p>
+                  <v-icon size="32" color="medium-emphasis">inbox</v-icon>
+                  <p class="text-body-2 text-medium-emphasis mt-2">
+                    Queue is empty. Add jobs from the global Print Jobs view,
+                    or queue files directly from the Files tab.
+                  </p>
                 </div>
                 <ol v-else class="pdv-queue-list">
                   <li
@@ -338,7 +493,18 @@
                   icon
                   variant="text"
                   size="small"
-                  title="Start print"
+                  title="Add to queue"
+                  :disabled="!isOnline || addingToQueuePath === f.path"
+                  :loading="addingToQueuePath === f.path"
+                  @click.stop="addUsbToQueue(f)"
+                >
+                  <v-icon size="18" color="success">add</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="small"
+                  title="Start print now"
                   :disabled="!isOnline"
                   @click.stop="startUsbPrint(f.path)"
                 >
@@ -792,6 +958,8 @@ import { DialogName } from '@/components/Generic/Dialogs/dialog.constants'
 import { useSnackbar } from '@/shared/snackbar.composable'
 import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
+import { notifyPrintJobsChanged } from '@/shared/print-jobs-invalidator.composable'
+import { derivePrinterAttention } from '@/shared/printer-attention.util'
 
 const props = defineProps<{ printerId: number }>()
 
@@ -844,6 +1012,171 @@ async function openEditDialog() {
   await addOrUpdateDialog.openDialog({ id: props.printerId })
   // Re-sync the form with whatever the dialog left behind on save.
   resetSettingsForm()
+}
+
+// ── Print lifecycle actions (mirrors FileExplorerSideNav) ──
+const pauseToggleBusy = ref(false)
+const stopBusy = ref(false)
+const queueProcessingNext = ref(false)
+
+async function clickPausePrint() {
+  if (!props.printerId) return
+  pauseToggleBusy.value = true
+  try {
+    await PrintersService.pausePrintJob(props.printerId)
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:pause' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not pause',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    pauseToggleBusy.value = false
+  }
+}
+async function clickResumePrint() {
+  if (!props.printerId) return
+  pauseToggleBusy.value = true
+  try {
+    await PrintersService.resumePrintJob(props.printerId)
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:resume' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not resume',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    pauseToggleBusy.value = false
+  }
+}
+async function clickStopPrint() {
+  if (!props.printerId) return
+  const ok = await confirmDialog({
+    title: 'Cancel current print?',
+    message: 'The print will stop immediately and progress will be lost.',
+    hint: "You can restart it from the printer's queue once it's back online.",
+    confirmText: 'Cancel print',
+    cancelText: 'Keep printing',
+    severity: 'danger',
+    icon: 'stop_circle',
+  })
+  if (!ok) return
+  stopBusy.value = true
+  try {
+    await PrintersService.stopPrintJob(props.printerId)
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:stop' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not cancel',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    stopBusy.value = false
+  }
+}
+
+async function togglePrinterConnection() {
+  if (!props.printerId) return
+  try {
+    if (isOperational.value) {
+      await PrintersService.sendPrinterDisconnectCommand(props.printerId)
+    } else {
+      await PrintersService.sendPrinterConnectCommand(props.printerId)
+    }
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Connection toggle failed',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
+}
+
+async function toggleEnabled() {
+  if (!props.printerId || !printer.value) return
+  try {
+    await PrintersService.toggleEnabled(props.printerId, !printer.value.enabled)
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not toggle enabled',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
+}
+
+async function refreshSocketState() {
+  if (!props.printerId) return
+  try {
+    await PrintersService.refreshSocket(props.printerId)
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not refresh',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
+}
+
+async function toggleMaintenance() {
+  if (!props.printerId) return
+  // If already under maintenance, close the active log. Otherwise open
+  // the standard creation dialog so the operator can record cause/notes.
+  if (isUnderMaintenance.value) {
+    try {
+      const active = await PrinterMaintenanceLogService.getActiveByPrinterId(props.printerId)
+      if (active) await PrinterMaintenanceLogService.complete(active.id, {})
+      snackbar.openInfoMessage({ title: 'Maintenance complete' })
+      await loadMaintenance()
+    } catch (e: any) {
+      snackbar.openErrorMessage({
+        title: 'Could not end maintenance',
+        subtitle: e?.message ?? 'Unknown error',
+      })
+    }
+    return
+  }
+  await maintenanceDialog.openDialog({ printerId: props.printerId })
+  await loadMaintenance()
+}
+
+async function processNextInQueue() {
+  if (!props.printerId || queueProcessingNext.value) return
+  queueProcessingNext.value = true
+  try {
+    await PrintQueueService.processQueue(props.printerId)
+    await loadQueue()
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:processNext' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not start next job',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    queueProcessingNext.value = false
+  }
+}
+
+async function clearQueue() {
+  if (!props.printerId) return
+  const count = queue.value.length
+  if (count === 0) return
+  const ok = await confirmDialog({
+    title: `Clear ${count} job${count === 1 ? '' : 's'} from the queue?`,
+    message:
+      "All queued jobs on this printer will be removed. The currently running print, if any, won't be affected.",
+    confirmText: 'Clear queue',
+    severity: 'warning',
+    icon: 'delete_sweep',
+  })
+  if (!ok) return
+  try {
+    await PrintQueueService.clearQueue(props.printerId)
+    queue.value = []
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:clearQueue' })
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not clear queue',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  }
 }
 
 // ── Settings form (inline edit) ──
@@ -972,6 +1305,23 @@ const isOnline = computed(() => socketState.value?.api === 'responding')
 const flags = computed(() => printerEvents.value?.current?.payload?.state?.flags)
 const isPrinting = computed(() => !!flags.value?.printing)
 const isPaused = computed(() => !!flags.value?.paused || !!flags.value?.pausing)
+const isOperational = computed(() => !!flags.value?.operational)
+const isStoppable = computed(
+  () => !!(flags.value?.printing || flags.value?.paused || flags.value?.pausing),
+)
+const isUnderMaintenance = computed(
+  () => !printer.value?.enabled && !!printer.value?.disabledReason,
+)
+
+const printerAttention = computed(() =>
+  derivePrinterAttention(printer.value, printerEvents.value, socketState.value),
+)
+const attentionAlertType = computed<'error' | 'warning' | 'info'>(() => {
+  const s = printerAttention.value.severity
+  if (s === 'critical') return 'error'
+  if (s === 'warning') return 'warning'
+  return 'info'
+})
 
 const firmwareMessage = computed<string | null>(() => {
   const msg = (printerEvents.value?.current?.payload as any)?.printerMessage
@@ -1297,6 +1647,38 @@ async function startUsbPrint(path: string) {
   }
 }
 
+// One-at-a-time guard so the loading spinner stays on the row the user
+// clicked even if they're spam-clicking. Keyed by `file.path` since the
+// USB file list doesn't carry a stable id.
+const addingToQueuePath = ref<string | null>(null)
+async function addUsbToQueue(f: FileDto) {
+  if (!props.printerId) return
+  addingToQueuePath.value = f.path
+  try {
+    await PrintQueueService.createJobFromUsbFile(props.printerId, {
+      filePath: f.path,
+      displayName: leafName(f.path),
+      fileSize: typeof f.size === 'number' ? f.size : undefined,
+      addToQueue: true,
+    })
+    snackbar.openInfoMessage({
+      title: 'Added to queue',
+      subtitle: leafName(f.path),
+    })
+    // Refresh both the global jobs list and the on-page queue card so
+    // the operator sees the new row immediately.
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:queueFromUsb' })
+    await loadQueue()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not queue file',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    addingToQueuePath.value = null
+  }
+}
+
 async function deleteFile(path: string) {
   if (!props.printerId) return
   const ok = await confirmDialog({
@@ -1552,6 +1934,20 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 
 .pdv-tabs {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pdv-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pdv-attention {
+  margin: 8px 16px 0;
 }
 
 .pdv-card {
