@@ -78,6 +78,17 @@
       <v-tab value="files">Files</v-tab>
       <v-tab value="history">History</v-tab>
       <v-tab value="maintenance">Maintenance</v-tab>
+      <v-tab v-if="cameras.length > 0" value="cameras">
+        Cameras
+        <v-chip
+          v-if="cameras.length > 1"
+          size="x-small"
+          class="ml-1"
+          density="comfortable"
+        >
+          {{ cameras.length }}
+        </v-chip>
+      </v-tab>
       <v-tab value="settings">Settings</v-tab>
     </v-tabs>
 
@@ -205,31 +216,44 @@
       <!-- ========== FILES ========== -->
       <v-tabs-window-item value="files">
         <div class="pa-3">
-          <div class="d-flex align-center mb-2">
-            <v-btn-toggle
-              v-model="filesSource"
-              density="comfortable"
+          <!-- Toolbar -->
+          <div class="d-flex align-center flex-wrap mb-2" style="gap: 8px;">
+            <v-text-field
+              v-model="filesSearch"
+              prepend-inner-icon="search"
+              placeholder="Filter…"
+              density="compact"
+              hide-details
+              clearable
+              style="max-width: 240px;"
+            />
+            <v-btn
+              size="small"
+              variant="tonal"
               color="primary"
-              mandatory
-              variant="outlined"
+              prepend-icon="upload"
+              :disabled="!isOnline || filesUploading"
+              :loading="filesUploading"
+              @click="filesInputRef?.click()"
             >
-              <v-btn size="small" value="usb">Printer USB</v-btn>
-              <v-btn size="small" value="storage">File storage</v-btn>
-            </v-btn-toggle>
-            <span
-              v-if="filesBreadcrumb.length > 0"
-              class="ml-3 text-body-2 text-medium-emphasis"
+              Upload
+            </v-btn>
+            <input
+              ref="filesInputRef"
+              type="file"
+              accept=".gcode,.bgcode,.3mf"
+              style="display: none;"
+              @change="onFilesPicked"
             >
-              <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
-              <template v-for="(seg, i) in filesBreadcrumb" :key="i">
-                /
-                <a
-                  href="#"
-                  class="pdv-crumb"
-                  @click.prevent="navigateFilesTo(filesBreadcrumb.slice(0, i + 1).join('/'))"
-                >{{ seg }}</a>
-              </template>
-            </span>
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="create_new_folder"
+              :disabled="!isOnline"
+              @click="newFolderOpen = true"
+            >
+              New folder
+            </v-btn>
             <v-spacer />
             <v-btn
               size="small"
@@ -241,17 +265,33 @@
             </v-btn>
           </div>
 
+          <!-- Breadcrumb row -->
+          <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
+            <a href="#" class="pdv-crumb" @click.prevent="navigateFilesTo('')">root</a>
+            <template v-for="(seg, i) in filesBreadcrumb" :key="i">
+              <span class="mx-1">/</span>
+              <a
+                href="#"
+                class="pdv-crumb"
+                @click.prevent="navigateFilesTo(filesBreadcrumb.slice(0, i + 1).join('/'))"
+              >{{ seg }}</a>
+            </template>
+          </div>
+
+          <!-- Body -->
           <div v-if="filesLoading" class="pdv-empty">
             <v-progress-circular indeterminate size="20" width="2" />
           </div>
           <div
-            v-else-if="!filesData || (filesData.dirs.length === 0 && filesData.files.length === 0)"
+            v-else-if="!filesData || (filteredDirs.length === 0 && filteredFiles.length === 0)"
             class="pdv-empty"
           >
             <v-icon size="48" color="medium-emphasis">folder_off</v-icon>
-            <p class="text-body-2 text-medium-emphasis mt-2">No files here.</p>
+            <p class="text-body-2 text-medium-emphasis mt-2">
+              {{ filesSearch ? 'No matches for that filter.' : 'No files here.' }}
+            </p>
             <v-btn
-              v-if="filesPath"
+              v-if="filesPath && !filesSearch"
               size="small"
               variant="text"
               class="mt-2"
@@ -262,20 +302,32 @@
           </div>
           <v-list v-else density="comfortable" class="pdv-files">
             <v-list-item
-              v-if="filesPath"
+              v-if="filesPath && !filesSearch"
               prepend-icon="arrow_upward"
               title=".."
               @click="navigateFilesTo(parentPathOf(filesPath))"
             />
             <v-list-item
-              v-for="d in filesData.dirs"
+              v-for="d in filteredDirs"
               :key="`d:${d.path}`"
               prepend-icon="folder"
               :title="leafName(d.path)"
               @click="navigateFilesTo(d.path)"
-            />
+            >
+              <template #append>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="small"
+                  title="Delete folder"
+                  @click.stop="deleteFile(d.path)"
+                >
+                  <v-icon size="18">delete_outline</v-icon>
+                </v-btn>
+              </template>
+            </v-list-item>
             <v-list-item
-              v-for="f in filesData.files"
+              v-for="f in filteredFiles"
               :key="`f:${f.path}`"
               prepend-icon="insert_drive_file"
               :title="leafName(f.path)"
@@ -283,7 +335,6 @@
             >
               <template #append>
                 <v-btn
-                  v-if="filesSource === 'usb'"
                   icon
                   variant="text"
                   size="small"
@@ -306,6 +357,40 @@
             </v-list-item>
           </v-list>
         </div>
+
+        <!-- New-folder inline dialog. Local v-dialog instead of opening a
+             global one — keeps the flow scoped to this tab and the
+             cancel/close behaviour predictable. -->
+        <v-dialog v-model="newFolderOpen" max-width="360">
+          <v-card>
+            <v-card-title class="text-subtitle-1">Create folder</v-card-title>
+            <v-card-text>
+              <v-text-field
+                v-model="newFolderName"
+                label="Folder name"
+                density="compact"
+                autofocus
+                @keyup.enter="createNewFolder"
+              />
+              <p class="text-caption text-medium-emphasis">
+                Created under {{ filesPath || 'root' }}
+              </p>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn variant="text" @click="newFolderOpen = false">Cancel</v-btn>
+              <v-btn
+                color="primary"
+                variant="tonal"
+                :disabled="!newFolderName.trim()"
+                :loading="newFolderSubmitting"
+                @click="createNewFolder"
+              >
+                Create
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
       </v-tabs-window-item>
 
       <!-- ========== HISTORY ========== -->
@@ -503,49 +588,158 @@
         </div>
       </v-tabs-window-item>
 
-      <!-- ========== SETTINGS ========== -->
-      <v-tabs-window-item value="settings">
+      <!-- ========== CAMERAS ========== -->
+      <v-tabs-window-item value="cameras">
         <div class="pa-3">
-          <div class="d-flex align-center mb-3">
-            <span class="text-overline text-medium-emphasis">Printer configuration</span>
-            <v-spacer />
+          <div v-if="camerasLoading" class="pdv-empty">
+            <v-progress-circular indeterminate size="24" />
+          </div>
+          <div v-else-if="cameras.length === 0" class="pdv-empty">
+            <v-icon size="48" color="medium-emphasis">videocam_off</v-icon>
+            <p class="text-body-2 text-medium-emphasis mt-2">
+              No cameras configured for this printer.
+            </p>
             <v-btn
+              class="mt-2"
               size="small"
-              color="primary"
-              variant="tonal"
-              prepend-icon="edit"
-              @click="openEditDialog"
+              variant="text"
+              prepend-icon="settings"
+              to="/cameras"
             >
-              Edit printer
+              Manage cameras
             </v-btn>
           </div>
-
-          <v-row dense>
-            <v-col cols="12" md="6">
+          <v-row v-else dense>
+            <v-col v-for="cam in cameras" :key="cam.id" cols="12" md="6">
               <v-card variant="tonal" class="pdv-card">
-                <v-card-title class="text-subtitle-1">
-                  <v-icon class="mr-2" color="primary">info</v-icon>
-                  Connection
+                <v-card-title class="text-subtitle-1 d-flex align-center">
+                  <v-icon class="mr-2" color="primary">videocam</v-icon>
+                  {{ cam.name || `Camera ${cam.id}` }}
+                  <v-spacer />
+                  <v-btn
+                    icon
+                    size="x-small"
+                    variant="text"
+                    title="Refresh stream"
+                    @click="bumpCamRefresh(cam.id!)"
+                  >
+                    <v-icon size="16">refresh</v-icon>
+                  </v-btn>
                 </v-card-title>
                 <v-divider />
-                <v-card-text>
-                  <dl class="pdv-info">
-                    <dt>Name</dt><dd>{{ printer.name }}</dd>
-                    <dt>URL</dt><dd>
-                      <a :href="printer.printerURL" target="_blank" rel="noopener">
-                        {{ printer.printerURL }}
-                      </a>
-                    </dd>
-                    <dt>Type</dt><dd>{{ printerTypeLabel }}</dd>
-                    <dt>Enabled</dt><dd>{{ printer.enabled ? 'Yes' : 'No' }}</dd>
-                    <dt v-if="printer.disabledReason">Reason</dt>
-                    <dd v-if="printer.disabledReason">{{ printer.disabledReason }}</dd>
-                    <dt>Created</dt><dd>{{ formatDateOrDash(printer.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
-                  </dl>
+                <v-card-text class="pa-2">
+                  <div
+                    class="pdv-cam"
+                    :style="{
+                      aspectRatio: cam.aspectRatio || '16 / 9',
+                      transform: cameraTransform(cam),
+                    }"
+                  >
+                    <img
+                      :src="cameraStreamSrc(cam)"
+                      alt="camera stream"
+                      class="pdv-cam__img"
+                      @error="onCamLoadError(cam.id!)"
+                    >
+                  </div>
                 </v-card-text>
               </v-card>
             </v-col>
-            <v-col cols="12" md="6">
+          </v-row>
+        </div>
+      </v-tabs-window-item>
+
+      <!-- ========== SETTINGS ========== -->
+      <v-tabs-window-item value="settings">
+        <div class="pa-3">
+          <v-row dense>
+            <v-col cols="12" md="7">
+              <!-- Editable form. Mirrors AddOrUpdatePrinterDialog field-
+                   for-field; submitting calls the same updatePrinter
+                   endpoint with `forceSave=false`. We don't try to inline
+                   the test/check panel — that's still one click away via
+                   "Edit in dialog" below. -->
+              <v-card variant="tonal" class="pdv-card">
+                <v-card-title class="text-subtitle-1 d-flex align-center">
+                  <v-icon class="mr-2" color="primary">tune</v-icon>
+                  Printer configuration
+                  <v-spacer />
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    prepend-icon="open_in_full"
+                    title="Open in the full edit dialog (test connection, force save, duplicate)"
+                    @click="openEditDialog"
+                  >
+                    Advanced
+                  </v-btn>
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-text-field
+                    v-model="settingsForm.name"
+                    label="Name"
+                    density="compact"
+                    class="mb-2"
+                  />
+                  <v-text-field
+                    v-model="settingsForm.printerURL"
+                    label="URL"
+                    hint="e.g. http://192.168.187.29"
+                    persistent-hint
+                    density="compact"
+                    class="mb-2"
+                  />
+                  <v-row dense>
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="settingsForm.username"
+                        label="Username"
+                        autocomplete="username"
+                        density="compact"
+                      />
+                    </v-col>
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="settingsForm.password"
+                        label="Password"
+                        type="password"
+                        autocomplete="current-password"
+                        density="compact"
+                      />
+                    </v-col>
+                  </v-row>
+                  <v-switch
+                    v-model="settingsForm.enabled"
+                    label="Enabled"
+                    color="primary"
+                    density="compact"
+                    hide-details
+                    class="mt-1"
+                  />
+                  <div class="d-flex mt-3">
+                    <v-btn
+                      variant="text"
+                      :disabled="!settingsDirty || settingsSaving"
+                      @click="resetSettingsForm"
+                    >
+                      Discard changes
+                    </v-btn>
+                    <v-spacer />
+                    <v-btn
+                      color="primary"
+                      :disabled="!settingsDirty"
+                      :loading="settingsSaving"
+                      @click="saveSettings"
+                    >
+                      Save
+                    </v-btn>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="5">
               <v-card variant="tonal" class="pdv-card">
                 <v-card-title class="text-subtitle-1">
                   <v-icon class="mr-2" color="primary">memory</v-icon>
@@ -554,11 +748,16 @@
                 <v-divider />
                 <v-card-text>
                   <dl class="pdv-info">
+                    <dt>Type</dt><dd>{{ printerTypeLabel }}</dd>
                     <dt>Socket</dt><dd>{{ socketStateText }}</dd>
                     <dt>API</dt><dd>{{ apiStateText }}</dd>
                     <dt>State</dt><dd>{{ printerState?.text ?? '—' }}</dd>
                     <dt>Last update</dt>
                     <dd :title="lastSeenIso ?? ''">{{ lastSeenLabel }}</dd>
+                    <dt v-if="printer.disabledReason">Reason</dt>
+                    <dd v-if="printer.disabledReason">{{ printer.disabledReason }}</dd>
+                    <dt>Created</dt>
+                    <dd>{{ formatDateOrDash(printer.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
                   </dl>
                 </v-card-text>
               </v-card>
@@ -580,6 +779,10 @@ import { PrintJobService, PrintJobDto } from '@/backend/print-job.service'
 import { PrintQueueService, QueuedJob } from '@/backend/print-queue.service'
 import { PrinterMaintenanceLogService } from '@/backend/printer-maintenance-log.service'
 import { PrinterRemoteFileService } from '@/backend/printer-remote-file.service'
+import { PrintersService } from '@/backend/printers.service'
+import { CameraStreamService } from '@/backend/camera-stream.service'
+import type { CameraStream } from '@/models/camera-streams/camera-stream'
+import type { CreatePrinter } from '@/models/printers/create-printer.model'
 import type { PrinterMaintenanceLog } from '@/models/printers/printer-maintenance-log.model'
 import type { FilesDto, FileDto } from '@/models/printers/printer-file.model'
 import { usePrinterTileThumbnailQuery } from '@/queries/printer-tile-thumbnail.query'
@@ -602,8 +805,8 @@ const addOrUpdateDialog = useDialog(DialogName.AddOrUpdatePrinterDialog)
 const fileExplorer = useFileExplorer()
 const snackbar = useSnackbar()
 
-type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'settings'
-const TAB_NAMES: TabName[] = ['overview', 'files', 'history', 'maintenance', 'settings']
+type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'cameras' | 'settings'
+const TAB_NAMES: TabName[] = ['overview', 'files', 'history', 'maintenance', 'cameras', 'settings']
 const tab = ref<TabName>('overview')
 
 // Track the open tab in the URL so reload / share keeps you on the same panel.
@@ -639,7 +842,91 @@ async function openControlDialog() {
 async function openEditDialog() {
   if (!props.printerId) return
   await addOrUpdateDialog.openDialog({ id: props.printerId })
+  // Re-sync the form with whatever the dialog left behind on save.
+  resetSettingsForm()
 }
+
+// ── Settings form (inline edit) ──
+interface SettingsFormShape {
+  name: string
+  printerURL: string
+  username: string
+  password: string
+  enabled: boolean
+}
+function buildFormFromPrinter(): SettingsFormShape {
+  return {
+    name: printer.value?.name ?? '',
+    printerURL: printer.value?.printerURL ?? '',
+    // `password` and `username` are write-mostly server-side — the GET
+    // returns them masked / not at all. Start empty and let the operator
+    // re-enter when they actually want to change them.
+    username: '',
+    password: '',
+    enabled: printer.value?.enabled ?? true,
+  }
+}
+const settingsForm = ref<SettingsFormShape>(buildFormFromPrinter())
+const settingsSaving = ref(false)
+
+const settingsDirty = computed(() => {
+  if (!printer.value) return false
+  return (
+    settingsForm.value.name !== (printer.value.name ?? '') ||
+    settingsForm.value.printerURL !== (printer.value.printerURL ?? '') ||
+    settingsForm.value.enabled !== (printer.value.enabled ?? true) ||
+    settingsForm.value.username !== '' ||
+    settingsForm.value.password !== ''
+  )
+})
+
+function resetSettingsForm() {
+  settingsForm.value = buildFormFromPrinter()
+}
+
+async function saveSettings() {
+  if (!printer.value || !props.printerId) return
+  settingsSaving.value = true
+  try {
+    // `updatePrinter` wants the full CreatePrinter shape. Carry forward
+    // whatever the store already knows about the printer (type / api
+    // key) so we don't accidentally clear those server-side.
+    const payload: CreatePrinter = {
+      id: printer.value.id,
+      name: settingsForm.value.name.trim(),
+      printerURL: settingsForm.value.printerURL.trim(),
+      // Empty strings mean "leave existing creds alone" on the backend
+      // shape used by AddOrUpdatePrinterDialog. Re-validate by hand if
+      // you want to actively clear credentials — use the full dialog.
+      username: settingsForm.value.username,
+      password: settingsForm.value.password,
+      apiKey: (printer.value as { apiKey?: string }).apiKey ?? '',
+      printerType: printer.value.printerType ?? 0,
+      enabled: settingsForm.value.enabled,
+    }
+    await PrintersService.updatePrinter(props.printerId, payload, false)
+    snackbar.openInfoMessage({ title: 'Printer updated', subtitle: payload.name })
+    resetSettingsForm()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not save changes',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
+// Whenever the underlying printer object changes (e.g. socket update),
+// re-sync the form so external edits propagate — but only when the form
+// isn't dirty (otherwise we'd nuke the user's typing).
+watch(
+  () => printer.value,
+  () => {
+    if (!settingsDirty.value) resetSettingsForm()
+  },
+  { deep: true },
+)
 
 // ── Printer + live state ──
 const printer = computed(() => printerStore.printer(props.printerId))
@@ -855,15 +1142,30 @@ function actualHeight(d: ChartPoint): number {
   return Math.round((d.actualSeconds / max) * (chartHeight - 4))
 }
 
-// ── Files (printer USB + file storage) ──
-const filesSource = ref<'usb' | 'storage'>('usb')
+// ── Files (printer USB) ──
 const filesPath = ref<string>('')
 const filesData = ref<FilesDto | null>(null)
 const filesLoading = ref(false)
+const filesSearch = ref('')
+const filesInputRef = ref<HTMLInputElement | null>(null)
+const filesUploading = ref(false)
+const newFolderOpen = ref(false)
+const newFolderName = ref('')
+const newFolderSubmitting = ref(false)
 
 const filesBreadcrumb = computed(() =>
   filesPath.value ? filesPath.value.split('/').filter(Boolean) : [],
 )
+
+// Client-side filter. The PrusaLink list endpoint doesn't take a
+// `search=` param, and the listings we deal with are small enough that
+// a full-rerender filter is cheaper than a round-trip per keystroke.
+function matchesSearch(name: string): boolean {
+  if (!filesSearch.value) return true
+  return name.toLowerCase().includes(filesSearch.value.toLowerCase())
+}
+const filteredDirs = computed(() => (filesData.value?.dirs ?? []).filter((d) => matchesSearch(leafName(d.path))))
+const filteredFiles = computed(() => (filesData.value?.files ?? []).filter((f) => matchesSearch(leafName(f.path))))
 
 function leafName(p: string): string {
   return p.split(/[/\\]/).filter(Boolean).pop() ?? p
@@ -890,20 +1192,12 @@ async function loadFiles() {
   if (!props.printerId) return
   filesLoading.value = true
   try {
-    if (filesSource.value === 'usb') {
-      const data = await PrinterRemoteFileService.getFiles(
-        props.printerId,
-        false,
-        filesPath.value || undefined,
-      )
-      filesData.value = data
-    } else {
-      // File storage isn't per-printer — show a placeholder pointing the
-      // user to the global file explorer for that source. Keeps the tab
-      // useful without duplicating the entire file-storage controller's
-      // listing surface here.
-      filesData.value = { dirs: [], files: [] }
-    }
+    const data = await PrinterRemoteFileService.getFiles(
+      props.printerId,
+      false,
+      filesPath.value || undefined,
+    )
+    filesData.value = data
   } catch (e: any) {
     snackbar.openErrorMessage({
       title: 'Could not load files',
@@ -912,6 +1206,54 @@ async function loadFiles() {
     filesData.value = { dirs: [], files: [] }
   } finally {
     filesLoading.value = false
+  }
+}
+
+async function onFilesPicked(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Reset the input value so re-selecting the same file fires `change` again.
+  if (input) input.value = ''
+  if (!file || !printer.value) return
+  filesUploading.value = true
+  try {
+    await PrinterRemoteFileService.uploadFile(printer.value, file, false)
+    snackbar.openInfoMessage({
+      title: 'Upload complete',
+      subtitle: file.name,
+    })
+    await loadFiles()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Upload failed',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    filesUploading.value = false
+  }
+}
+
+async function createNewFolder() {
+  if (!props.printerId || !newFolderName.value.trim()) return
+  newFolderSubmitting.value = true
+  try {
+    // Compose relative path. Slashes in the name are sanitised — folder
+    // hierarchy should be created by navigating + creating one level
+    // at a time, not by smuggling a path through the name field.
+    const safe = newFolderName.value.trim().replace(/[\\/]+/g, '_')
+    const fullPath = filesPath.value ? `${filesPath.value}/${safe}` : safe
+    await PrinterRemoteFileService.createFolder(props.printerId, fullPath)
+    snackbar.openInfoMessage({ title: 'Folder created', subtitle: safe })
+    newFolderOpen.value = false
+    newFolderName.value = ''
+    await loadFiles()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not create folder',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    newFolderSubmitting.value = false
   }
 }
 
@@ -959,10 +1301,60 @@ function openSideNavExplorer() {
   fileExplorer.openFileExplorer(printer.value)
 }
 
-watch(filesSource, () => {
-  filesPath.value = ''
-  void loadFiles()
-})
+
+// ── Cameras (filter the global list down to this printer) ──
+const cameras = ref<CameraStream[]>([])
+const camerasLoading = ref(false)
+// Bumps the cache-buster on the stream URL so the user can force a
+// reload — handy when an MJPEG stream stalls and clears with a
+// "refresh stream" click instead of a hard page reload.
+const camRefresh = ref<Record<number, number>>({})
+
+async function loadCameras() {
+  if (!props.printerId) return
+  camerasLoading.value = true
+  try {
+    const all = await CameraStreamService.listCameraStreams()
+    cameras.value = (all ?? []).filter((c) => c.printerId === props.printerId)
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not load cameras',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+    cameras.value = []
+  } finally {
+    camerasLoading.value = false
+  }
+}
+
+function cameraStreamSrc(cam: CameraStream): string {
+  const base = cam.streamURL
+  const stamp = cam.id ? camRefresh.value[cam.id] : 0
+  if (!stamp) return base
+  // Append a cache-busting param. Handles both bare URLs and ones that
+  // already carry a query string.
+  return base + (base.includes('?') ? '&' : '?') + `_r=${stamp}`
+}
+
+function cameraTransform(cam: CameraStream): string {
+  const parts: string[] = []
+  if (cam.rotationClockwise) parts.push(`rotate(${cam.rotationClockwise}deg)`)
+  if (cam.flipHorizontal) parts.push('scaleX(-1)')
+  if (cam.flipVertical) parts.push('scaleY(-1)')
+  return parts.join(' ')
+}
+
+function bumpCamRefresh(id: number) {
+  camRefresh.value = { ...camRefresh.value, [id]: Date.now() }
+}
+
+function onCamLoadError(id: number) {
+  // Just log — the broken-image icon in the browser is enough of a
+  // visual cue. Toasting on every camera error would spam if the
+  // network's flaky.
+  // eslint-disable-next-line no-console
+  console.warn(`[cameras] stream failed to load for camera ${id}`)
+}
 
 // ── Maintenance ──
 const maintenanceLogs = ref<PrinterMaintenanceLog[]>([])
@@ -1037,18 +1429,20 @@ watch(
   () => {
     void loadQueue()
     void loadMaintenance()
+    void loadCameras()
   },
   { immediate: true },
 )
-// Refresh queue / maintenance / files when entering their respective
-// tabs, so the user sees fresh data even if they sat on Overview for a
-// while.
+// Refresh on tab entry so a stale snapshot doesn't outlive a context
+// switch. Cameras are loaded up-front (so the tab can appear/disappear
+// based on count) but re-fetched on entry to recover from stale streams.
 watch(
   tab,
   (next) => {
     if (next === 'overview') void loadQueue()
     if (next === 'maintenance') void loadMaintenance()
     if (next === 'files') void loadFiles()
+    if (next === 'cameras') void loadCameras()
   },
   { immediate: true },
 )
@@ -1264,5 +1658,23 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 6px;
+}
+
+.pdv-files-crumbs {
+  font-size: 13px;
+}
+
+.pdv-cam {
+  width: 100%;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pdv-cam__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 </style>
