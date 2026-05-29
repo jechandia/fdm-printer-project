@@ -346,24 +346,14 @@
                 class="pdv-section__hint"
               >{{ queue.length }} job{{ queue.length === 1 ? '' : 's' }}</span>
               <v-spacer />
-              <v-btn
-                v-if="queue.length > 0"
-                size="x-small"
-                variant="tonal"
-                color="success"
-                prepend-icon="play_arrow"
-                :disabled="!isOnline || !isOperational || queueProcessingNext"
-                :loading="queueProcessingNext"
-                @click="processNextInQueue"
-              >
-                Process next
-              </v-btn>
+              <!-- "Send to print" lives on the next-up hero card below,
+                   so a second "Process next" button in the section
+                   header was redundant. -->
               <v-btn
                 icon
                 variant="text"
                 size="x-small"
                 density="comfortable"
-                class="ml-1"
                 title="Refresh queue"
                 @click="loadQueue"
               >
@@ -1554,11 +1544,14 @@
         <v-card-text class="pdv-storage-details">
           <div class="pdv-storage-details__top">
             <!-- Full-size thumbnail. Falls back to a placeholder when
-                 the file has none (3MF without preview, legacy uploads). -->
+                 the file has none (3MF without preview, legacy uploads).
+                 prefer-largest pulls the highest-resolution thumbnail
+                 the slicer embedded so it stays crisp at this size. -->
             <div class="pdv-storage-details__thumb">
               <FileThumbnailCell
                 :file-storage-id="storageDetailsFile.fileStorageId"
                 :thumbnails="(storageDetailsFile.thumbnails as any) || []"
+                prefer-largest
               />
             </div>
             <div class="pdv-storage-details__primary">
@@ -3848,8 +3841,19 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   justify-content: center;
   border: 1px solid rgba(var(--v-theme-primary), 0.16);
 }
+/* FileThumbnailCell wraps its v-img in a scoped 60×60 container which
+   would dominate the dialog at this size. Bust through with :deep so
+   the inner box stretches to fill the hero slot — the picked
+   thumbnail (~400px) finally renders close to native resolution
+   instead of being downscaled to a 60px square. */
+.pdv-storage-details__thumb :deep(.thumbnail-container) {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
 .pdv-storage-details__thumb :deep(img),
-.pdv-storage-details__thumb :deep(.v-img) {
+.pdv-storage-details__thumb :deep(.v-img),
+.pdv-storage-details__thumb :deep(.thumbnail-image) {
   width: 100%;
   height: 100%;
   object-fit: contain;
