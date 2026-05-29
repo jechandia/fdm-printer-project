@@ -49,43 +49,70 @@
         </div>
       </div>
 
-      <!-- Live progress strip — only when there's an active print. -->
+      <!-- "Now printing" block — only when there's an active print.
+           Thumbnail on the left, file/progress/stats/slice info on the
+           right. Stays inside the sticky hero so the operator never
+           loses sight of what's running while navigating tabs. -->
       <div
         v-if="(isPrinting || isPaused) && currentJob?.progress"
-        class="pdv-hero-header__progress"
+        class="pdv-hero-header__now"
       >
-        <div class="pdv-hero-header__progress-row">
-          <span class="pdv-hero-header__file text-truncate" :title="currentFileName ?? ''">
-            {{ currentFileName ?? '—' }}
-          </span>
-          <span class="pdv-hero-header__percent">
-            {{ progressPercent }}%
-          </span>
+        <div class="pdv-hero-header__thumb">
+          <v-img
+            v-if="thumbnail"
+            :src="'data:image/png;base64,' + thumbnail"
+            cover
+          />
+          <v-icon v-else size="48" color="medium-emphasis">image</v-icon>
         </div>
-        <v-progress-linear
-          :model-value="currentJob.progress.completion ?? 0"
-          :color="isPaused ? 'warning' : 'success'"
-          height="6"
-          rounded
-        />
-        <!-- Stats line: temps + elapsed + remaining + ETA clock. -->
-        <div class="pdv-stats">
-          <span v-if="toolTempStr" class="pdv-stats__item" :title="`Tool: ${toolTempStr}`">
-            <v-icon size="14">whatshot</v-icon> {{ toolTempStr }}
-          </span>
-          <span v-if="bedTempStr" class="pdv-stats__item" :title="`Bed: ${bedTempStr}`">
-            <v-icon size="14">bed</v-icon> {{ bedTempStr }}
-          </span>
-          <span class="pdv-stats__spacer" />
-          <span v-if="elapsedFormatted" class="pdv-stats__item" title="Time elapsed">
-            <v-icon size="14">history</v-icon> {{ elapsedFormatted }}
-          </span>
-          <span v-if="timeRemainingFormatted" class="pdv-stats__item" title="Time remaining">
-            <v-icon size="14">schedule</v-icon> {{ timeRemainingFormatted }}
-          </span>
-          <span v-if="etaClockFormatted" class="pdv-stats__item" title="Estimated finish">
-            <v-icon size="14">check_circle</v-icon> done {{ etaClockFormatted }}
-          </span>
+        <div class="pdv-hero-header__now-body">
+          <div class="pdv-hero-header__progress-row">
+            <span class="pdv-hero-header__file text-truncate" :title="currentFileName ?? ''">
+              {{ currentFileName ?? '—' }}
+            </span>
+            <span class="pdv-hero-header__percent">
+              {{ progressPercent }}%
+            </span>
+          </div>
+          <v-progress-linear
+            :model-value="currentJob.progress.completion ?? 0"
+            :color="isPaused ? 'warning' : 'success'"
+            height="6"
+            rounded
+          />
+          <!-- Stats line: temps + elapsed + remaining + ETA clock. -->
+          <div class="pdv-stats">
+            <span v-if="toolTempStr" class="pdv-stats__item" :title="`Tool: ${toolTempStr}`">
+              <v-icon size="14">whatshot</v-icon> {{ toolTempStr }}
+            </span>
+            <span v-if="bedTempStr" class="pdv-stats__item" :title="`Bed: ${bedTempStr}`">
+              <v-icon size="14">bed</v-icon> {{ bedTempStr }}
+            </span>
+            <span v-if="elapsedFormatted" class="pdv-stats__item" title="Time elapsed">
+              <v-icon size="14">history</v-icon> {{ elapsedFormatted }}
+            </span>
+            <span v-if="timeRemainingFormatted" class="pdv-stats__item" title="Time remaining">
+              <v-icon size="14">schedule</v-icon> {{ timeRemainingFormatted }}
+            </span>
+            <span v-if="etaClockFormatted" class="pdv-stats__item" title="Estimated finish">
+              <v-icon size="14">check_circle</v-icon> done {{ etaClockFormatted }}
+            </span>
+          </div>
+          <!-- Slice metadata row (filament, layer height, model). Only
+               renders when the thumbnail-record query returned the
+               enriched `job` block; legacy rows without it still get
+               the temp/time line above. -->
+          <div v-if="hasSliceMeta" class="pdv-slice">
+            <span v-if="currentFilamentSummary" class="pdv-slice__item" title="Filament">
+              <v-icon size="14">fitness_center</v-icon> {{ currentFilamentSummary }}
+            </span>
+            <span v-if="currentSliceMetadata?.layerHeight" class="pdv-slice__item" title="Layer height">
+              <v-icon size="14">layers</v-icon> {{ currentSliceMetadata.layerHeight }} mm
+            </span>
+            <span v-if="currentSliceMetadata?.printerModel" class="pdv-slice__item" title="Sliced for">
+              <v-icon size="14">precision_manufacturing</v-icon> {{ currentSliceMetadata.printerModel }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -226,7 +253,7 @@
     </v-alert>
 
     <v-tabs v-model="tab" class="pdv-tabs">
-      <v-tab value="overview">Overview</v-tab>
+      <v-tab value="overview">Queue</v-tab>
       <v-tab value="files">Files</v-tab>
       <v-tab value="history">History</v-tab>
       <v-tab value="maintenance">Maintenance</v-tab>
@@ -245,71 +272,10 @@
     </v-tabs>
 
     <v-tabs-window v-model="tab" class="pdv-window">
-      <!-- ========== OVERVIEW ========== -->
+      <!-- ========== QUEUE (tab key stays `overview` so existing URL
+           query strings — e.g. ?tab=overview — keep working) ========== -->
       <v-tabs-window-item value="overview">
         <div class="pdv-content">
-          <!-- SECTION: Now printing — current job thumbnail + slice info.
-               Header sticky already shows file + progress + ETA. -->
-          <section class="pdv-section">
-            <header class="pdv-section__header">
-              <span class="pdv-section__label">Now printing</span>
-              <span
-                v-if="currentJob && progressPercent !== '0.0'"
-                class="pdv-section__hint"
-              >{{ progressPercent }}% · {{ timeRemainingFormatted ?? '—' }}</span>
-            </header>
-            <v-card class="pdv-card pdv-current-card" variant="outlined">
-              <v-card-text>
-                <div v-if="!currentJob" class="pdv-empty pdv-empty--card">
-                  <v-icon size="56" color="medium-emphasis">pause_circle</v-icon>
-                  <p class="text-body-1 mt-2">No active print</p>
-                  <p class="text-caption text-medium-emphasis">
-                    Queue a file from below or hit "Send to print" on the next-up
-                    card to start one.
-                  </p>
-                </div>
-                <div v-else class="pdv-current">
-                  <div class="pdv-current__thumb">
-                    <v-img
-                      v-if="thumbnail"
-                      :src="'data:image/png;base64,' + thumbnail"
-                      max-height="240"
-                      cover
-                    />
-                    <v-icon v-else size="80" color="medium-emphasis">image</v-icon>
-                  </div>
-                  <div class="pdv-current__info">
-                    <div class="text-overline text-medium-emphasis">Now printing</div>
-                    <div class="text-h6 text-truncate pdv-current__name" :title="currentFileName ?? ''">
-                      {{ currentFileName ?? '—' }}
-                    </div>
-                    <dl class="pdv-current__stats">
-                      <template v-if="currentFilamentSummary">
-                        <dt><v-icon size="14">fitness_center</v-icon> Filament</dt>
-                        <dd>{{ currentFilamentSummary }}</dd>
-                      </template>
-                      <template v-if="currentSliceMetadata?.layerHeight">
-                        <dt><v-icon size="14">layers</v-icon> Layer</dt>
-                        <dd>{{ currentSliceMetadata.layerHeight }} mm</dd>
-                      </template>
-                      <template v-if="currentSliceMetadata?.printerModel">
-                        <dt><v-icon size="14">precision_manufacturing</v-icon> Sliced for</dt>
-                        <dd>{{ currentSliceMetadata.printerModel }}</dd>
-                      </template>
-                      <template v-if="currentSliceMetadata?.nozzleTemperature || currentSliceMetadata?.bedTemperature">
-                        <dt><v-icon size="14">thermostat</v-icon> Setpoints</dt>
-                        <dd>
-                          {{ currentSliceMetadata.nozzleTemperature ?? '—' }}° /
-                          {{ currentSliceMetadata.bedTemperature ?? '—' }}°
-                        </dd>
-                      </template>
-                    </dl>
-                  </div>
-                </div>
-              </v-card-text>
-            </v-card>
-          </section>
-
           <!-- SECTION: Queue. "Next up" hero gets the visual weight,
                tail items list compactly below. -->
           <section class="pdv-section">
@@ -1591,6 +1557,11 @@ const thumbnail = computed(() => thumbnailRecord.value?.thumbnailBase64 ?? '')
 // Pulled from the same enriched thumbnail endpoint so we don't double
 // up the request — the data is already in TanStack's cache.
 const currentSliceMetadata = computed(() => thumbnailRecord.value?.job?.metadata ?? null)
+const hasSliceMeta = computed(() => {
+  const m = currentSliceMetadata.value
+  if (!m) return false
+  return !!(m.filamentUsedGrams || m.layerHeight || m.printerModel)
+})
 
 // Filament summary handles both single-extruder (number) and MMU
 // (array of grams per filament) so the card stays useful for either.
@@ -2279,8 +2250,39 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   text-decoration: underline;
 }
 
-.pdv-hero-header__progress {
+.pdv-hero-header__now {
   margin-top: 14px;
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.pdv-hero-header__thumb {
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pdv-hero-header__thumb :deep(.v-img),
+.pdv-hero-header__thumb :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pdv-hero-header__now-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
 }
 
 .pdv-hero-header__progress-row {
@@ -2288,7 +2290,7 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .pdv-hero-header__file {
@@ -2337,8 +2339,22 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   gap: 4px;
   font-variant-numeric: tabular-nums;
 }
-.pdv-stats__spacer {
-  flex: 1 1 auto;
+
+/* Slice-metadata row sits directly under the stats line — slightly
+   smaller and dimmer so it reads as "context about the file" vs
+   "live runtime". */
+.pdv-slice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+.pdv-slice__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .pdv-tabs {
