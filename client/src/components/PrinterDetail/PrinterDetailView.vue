@@ -11,8 +11,14 @@
   <div v-else class="pdv" :class="`pdv--${heroToneClass}`">
     <!-- Sticky hero. Identity, state, and (when printing) the live
          progress strip all in one block — the most important info stays
-         on screen even as the user scrolls deep into history. -->
-    <div class="pdv-hero-header">
+         on screen even as the user scrolls deep into history.
+         Collapses to a 56px compact bar past the scroll threshold so
+         the long lists in History/Files/Maintenance don't fight the
+         hero for vertical space. -->
+    <div
+      class="pdv-hero-header"
+      :class="{ 'pdv-hero-header--compact': isHeroCompact }"
+    >
       <div class="pdv-hero-header__top">
         <v-btn
           icon="arrow_back"
@@ -230,6 +236,58 @@
           </v-btn>
         </div>
       </div>
+
+      <!-- Compact-mode summary — single short line shown only when the
+           hero is collapsed and a print is active. Keeps the file
+           name, percent, remaining time and a Pause/Cancel within
+           thumb's reach without restoring the full hero. -->
+      <div
+        v-if="isHeroCompact && (isPrinting || isPaused) && currentJob?.progress"
+        class="pdv-hero-header__compact-row"
+      >
+        <span class="pdv-hero-header__compact-file text-truncate" :title="currentFileName ?? ''">
+          {{ currentFileName ?? '—' }}
+        </span>
+        <span class="pdv-hero-header__compact-pct">{{ progressPercent }}%</span>
+        <span v-if="timeRemainingFormatted" class="pdv-hero-header__compact-eta">
+          · {{ timeRemainingFormatted }}
+        </span>
+        <v-spacer />
+        <v-btn
+          v-if="isPrinting || isPaused"
+          :disabled="!isOnline"
+          :color="isPaused ? 'success' : 'warning'"
+          size="x-small"
+          variant="tonal"
+          :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
+          :loading="pauseToggleBusy"
+          @click="isPaused ? clickResumePrint() : clickPausePrint()"
+        >
+          {{ isPaused ? 'Resume' : 'Pause' }}
+        </v-btn>
+        <v-btn
+          v-if="isStoppable"
+          color="error"
+          size="x-small"
+          variant="tonal"
+          prepend-icon="stop"
+          :loading="stopBusy"
+          @click="clickStopPrint"
+        >
+          Cancel
+        </v-btn>
+      </div>
+
+      <!-- Thin progress at the very bottom of the hero. Always visible
+           when a print is active so even the compact-mode view shows
+           how far along it is without taking extra height. -->
+      <v-progress-linear
+        v-if="(isPrinting || isPaused) && currentJob?.progress"
+        :model-value="currentJob.progress.completion ?? 0"
+        :color="isPaused ? 'warning' : 'success'"
+        height="3"
+        class="pdv-hero-header__progress-bottom"
+      />
     </div>
 
     <!-- Attention banner — same priority order the side nav uses. -->
@@ -848,6 +906,7 @@
               density="comfortable"
               hover
               class="pdv-table"
+              @click:row="onHistoryRowClick"
             >
               <template #item.status="{ item }">
                 <v-chip
@@ -1115,11 +1174,122 @@
         </div>
       </v-tabs-window-item>
     </v-tabs-window>
+
+    <!-- History row detail dialog. Surfaces full job context (thumbnail,
+         failure reason, exact timings, slice metadata) that doesn't
+         fit in a single table row. Click any row in History to open. -->
+    <v-dialog v-model="historyDetailOpen" max-width="640" scrollable>
+      <v-card v-if="historyDetailJob">
+        <v-card-title class="d-flex align-center justify-space-between">
+          <div class="d-flex align-center" style="min-width: 0;">
+            <v-chip
+              :color="statusColor(historyDetailJob.status)"
+              size="small"
+              variant="tonal"
+              density="comfortable"
+              class="mr-2"
+            >
+              {{ statusLabel(historyDetailJob.status) }}
+            </v-chip>
+            <span class="text-truncate">{{ displayFileName(historyDetailJob) }}</span>
+          </div>
+          <v-btn icon="close" variant="text" size="small" @click="historyDetailOpen = false" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pa-0">
+          <div class="pdv-hd-preview">
+            <FileThumbnailCell
+              v-if="historyDetailJob.fileStorageId"
+              :file-storage-id="historyDetailJob.fileStorageId"
+              :thumbnails="(historyDetailJob.thumbnails as any) || []"
+            />
+            <v-icon v-else size="64" color="medium-emphasis">image_not_supported</v-icon>
+          </div>
+
+          <div class="pa-4">
+            <!-- Failure reason takes top billing on a failed job — that's
+                 the operator's first question when seeing one in the list. -->
+            <v-alert
+              v-if="historyDetailJob.statusReason && historyDetailJob.status !== 'COMPLETED'"
+              type="error"
+              variant="tonal"
+              density="compact"
+              icon="error_outline"
+              class="mb-3"
+            >
+              <div class="text-caption text-medium-emphasis">Reason</div>
+              <div class="text-body-2">{{ historyDetailJob.statusReason }}</div>
+            </v-alert>
+
+            <v-row dense>
+              <v-col cols="6">
+                <div class="text-caption text-medium-emphasis">Started</div>
+                <div class="text-body-2">{{ formatDateOrDash(historyDetailJob.startedAt) }}</div>
+              </v-col>
+              <v-col cols="6">
+                <div class="text-caption text-medium-emphasis">Ended</div>
+                <div class="text-body-2">{{ formatDateOrDash(historyDetailJob.endedAt) }}</div>
+              </v-col>
+              <v-col cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Actual duration</div>
+                <div class="text-body-2">{{ formatDuration(historyDetailJob.statistics?.actualPrintTimeSeconds) }}</div>
+              </v-col>
+              <v-col cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Estimated</div>
+                <div class="text-body-2">{{ formatDuration(historyDetailJob.metadata?.gcodePrintTimeSeconds) }}</div>
+              </v-col>
+              <v-col cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Δ vs estimate</div>
+                <div
+                  v-if="historyDetailDelta !== null"
+                  class="text-body-2"
+                  :class="historyDetailDelta >= 0 ? 'text-error' : 'text-success'"
+                >
+                  {{ historyDetailDelta >= 0 ? '+' : '' }}{{ formatDuration(Math.abs(historyDetailDelta)) }}
+                </div>
+                <div v-else class="text-body-2 text-medium-emphasis">—</div>
+              </v-col>
+              <v-col cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Filament</div>
+                <div class="text-body-2">{{ historyDetailFilament }}</div>
+              </v-col>
+              <v-col v-if="historyDetailJob.metadata?.layerHeight" cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Layer height</div>
+                <div class="text-body-2">{{ historyDetailJob.metadata.layerHeight }} mm</div>
+              </v-col>
+              <v-col v-if="historyDetailJob.metadata?.printerModel" cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">Sliced for</div>
+                <div class="text-body-2">{{ historyDetailJob.metadata.printerModel }}</div>
+              </v-col>
+              <v-col v-if="historyDetailJob.metadata?.fileSize" cols="6" class="mt-3">
+                <div class="text-caption text-medium-emphasis">File size</div>
+                <div class="text-body-2">{{ formatFileSizeForDetail(historyDetailJob.metadata.fileSize) }}</div>
+              </v-col>
+            </v-row>
+          </div>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-btn
+            v-if="historyDetailJob.fileStorageId"
+            variant="text"
+            prepend-icon="add"
+            :disabled="!isOnline || historyDetailQueueBusy"
+            :loading="historyDetailQueueBusy"
+            @click="reQueueHistoryJob"
+          >
+            Queue again
+          </v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="historyDetailOpen = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import { usePrinterStore } from '@/store/printer.store'
@@ -1160,6 +1330,25 @@ const snackbar = useSnackbar()
 type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'cameras' | 'settings'
 const TAB_NAMES: TabName[] = ['overview', 'files', 'history', 'maintenance', 'cameras', 'settings']
 const tab = ref<TabName>('overview')
+
+// Compact-mode hero: collapses to a single line + thin progress bar
+// once the user has scrolled past a threshold. The full layout is
+// generous (~220 px when printing) and chews real estate from long
+// History / Files / Maintenance lists — past ~120 px down it's worth
+// shrinking. Hysteresis gap (collapse at 120, restore at 80) so a
+// scroll position right at the threshold doesn't strobe between
+// states on every wheel tick.
+const isHeroCompact = ref(false)
+function onScroll() {
+  const y = window.scrollY ?? 0
+  if (!isHeroCompact.value && y > 120) isHeroCompact.value = true
+  else if (isHeroCompact.value && y < 80) isHeroCompact.value = false
+}
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
 // Track the open tab in the URL so reload / share keeps you on the same panel.
 onMounted(() => {
@@ -1388,6 +1577,69 @@ function formatFilamentGramsHero(v: number | number[] | null | undefined): strin
   const total = Array.isArray(v) ? v.reduce((a, b) => a + (b ?? 0), 0) : v
   if (!Number.isFinite(total) || total <= 0) return ''
   return `${Math.round(total)} g`
+}
+
+// ── History row → detail dialog ──
+const historyDetailOpen = ref(false)
+const historyDetailJob = ref<PrintJobDto | null>(null)
+const historyDetailQueueBusy = ref(false)
+
+function onHistoryRowClick(_evt: unknown, row: { item: { jobId: number } }) {
+  // v-data-table's row-click hands us an event + a row payload. We
+  // resolve the underlying PrintJobDto from the cached jobs array so
+  // the dialog gets every field (statusReason, statistics, metadata)
+  // that the table row didn't surface.
+  const id = row?.item?.jobId
+  if (!id) return
+  const job = jobs.value.find((j) => j.id === id)
+  if (!job) return
+  historyDetailJob.value = job
+  historyDetailOpen.value = true
+}
+
+const historyDetailDelta = computed<number | null>(() => {
+  const j = historyDetailJob.value
+  if (!j) return null
+  const actual = j.statistics?.actualPrintTimeSeconds ?? null
+  const est = j.metadata?.gcodePrintTimeSeconds ?? null
+  if (actual === null || est === null) return null
+  return actual - est
+})
+
+const historyDetailFilament = computed<string>(() => {
+  const v = historyDetailJob.value?.metadata?.filamentUsedGrams
+  if (v == null) return '—'
+  const total = Array.isArray(v) ? v.reduce((a, b) => a + (b ?? 0), 0) : v
+  if (!Number.isFinite(total) || total <= 0) return '—'
+  const type = historyDetailJob.value?.metadata?.filamentType
+  return type ? `${Math.round(total)} g · ${type}` : `${Math.round(total)} g`
+})
+
+function formatFileSizeForDetail(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function reQueueHistoryJob() {
+  const j = historyDetailJob.value
+  if (!props.printerId || !j?.fileStorageId) return
+  historyDetailQueueBusy.value = true
+  try {
+    await PrintQueueService.createJobFromFile(props.printerId, j.fileStorageId)
+    snackbar.openInfoMessage({ title: 'Re-queued', subtitle: displayFileName(j) })
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:requeue' })
+    historyDetailOpen.value = false
+    await loadQueue()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not re-queue',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    historyDetailQueueBusy.value = false
+  }
 }
 
 async function clearQueue() {
@@ -2197,6 +2449,27 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   padding: 14px 20px 12px;
   background: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  transition: padding 180ms ease;
+}
+
+/* Compact mode: top row stays (identity + secondary icons), the
+   thumbnail/progress/stats now-row hides, and a tight compact-row
+   takes its place with just filename + percent + Pause/Cancel. */
+.pdv-hero-header--compact {
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+.pdv-hero-header--compact .pdv-hero-header__now {
+  display: none;
+}
+.pdv-hero-header--compact .pdv-hero-header__name {
+  font-size: 16px;
+}
+.pdv-hero-header--compact .pdv-hero-header__meta {
+  /* When collapsed, the meta row gets less prominence so the compact
+     summary line below can take the focus. */
+  font-size: 11px;
+  gap: 6px;
 }
 
 .pdv-hero-header__top {
@@ -2384,6 +2657,40 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Compact-mode summary row + thin bottom progress bar. The progress
+   bar is negative-margin'd into the hero's border so it visually
+   replaces the bottom border, keeping the page chrome at the same
+   height. */
+.pdv-hero-header__compact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-bottom: 8px;
+  font-size: 13px;
+}
+.pdv-hero-header__compact-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+.pdv-hero-header__compact-pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pdv-hero-header__compact-eta {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.pdv-hero-header__progress-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0;
 }
 
 .pdv-tabs {
@@ -2649,6 +2956,28 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 
 .pdv-table :deep(.v-data-table-footer) {
   display: none;
+}
+.pdv-table :deep(tbody tr) {
+  cursor: pointer;
+}
+
+/* History row → detail dialog: large thumbnail strip at the top so
+   the operator can identify the print at a glance, then a grid of
+   stats and an optional failure-reason alert. */
+.pdv-hd-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  min-height: 220px;
+  overflow: hidden;
+}
+.pdv-hd-preview :deep(.v-img),
+.pdv-hd-preview :deep(img) {
+  width: 100%;
+  height: 100%;
+  max-height: 280px;
+  object-fit: contain;
 }
 
 .pdv-maint-list {
