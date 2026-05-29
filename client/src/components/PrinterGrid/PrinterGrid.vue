@@ -182,18 +182,6 @@ async function onDropRemove(ev: DragEvent) {
 
 .printer-cell {
   padding: 4px;
-  /* Square cells: width is already 1fr from grid-template-columns; this
-     locks the height to the same measure so every column and every row
-     comes out the same size regardless of tile content. */
-  aspect-ratio: 1 / 1;
-  min-width: 0;
-}
-
-/* Make the tile fill the now-fixed-size cell instead of sizing to its
-   own intrinsic content. */
-.printer-cell :deep(.pg-tile) {
-  width: 100%;
-  height: 100%;
 }
 
 .printer-cell-large {
