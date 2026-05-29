@@ -1519,20 +1519,10 @@
          layer height or which printer the file was sliced for. -->
     <v-dialog v-model="storageDetailsOpen" max-width="720" scrollable>
       <v-card v-if="storageDetailsFile">
-        <v-card-title class="d-flex align-center" style="gap: 8px;">
-          <v-chip
-            v-if="storageDetailsFile.fileFormat"
-            size="small"
-            variant="tonal"
-            :color="storageFormatChipColor(storageDetailsFile.fileFormat)"
-            density="comfortable"
-          >
-            {{ storageDetailsFile.fileFormat.toUpperCase() }}
-          </v-chip>
-          <span class="text-truncate" :title="displayFileName(storageDetailsFile)">
-            {{ displayFileName(storageDetailsFile) }}
-          </span>
-          <v-spacer />
+        <!-- Slim title bar — just the close affordance. The file
+             identity (format chip + filename) lives beside the
+             thumbnail below so the dialog header doesn't double up. -->
+        <v-card-title class="d-flex align-center justify-end py-1">
           <v-btn
             icon="close"
             variant="text"
@@ -1554,26 +1544,48 @@
                 prefer-largest
               />
             </div>
-            <div class="pdv-storage-details__primary">
-              <div class="text-overline text-medium-emphasis">Headline</div>
-              <div class="pdv-storage-details__stats">
-                <div v-if="formatStorageSize(storageDetailsFile.fileSize)" class="pdv-storage-details__stat">
-                  <v-icon size="14">data_usage</v-icon>
-                  <span>{{ formatStorageSize(storageDetailsFile.fileSize) }}</span>
-                </div>
-                <div v-if="storageDetailsFile.metadata?.gcodePrintTimeSeconds" class="pdv-storage-details__stat">
-                  <v-icon size="14">schedule</v-icon>
-                  <span>~{{ formatQueueDuration(storageDetailsFile.metadata.gcodePrintTimeSeconds) }}</span>
-                </div>
-                <div v-if="storageDetailsFile.metadata?.filamentUsedGrams" class="pdv-storage-details__stat">
-                  <v-icon size="14">fitness_center</v-icon>
-                  <span>{{ Math.round(storageDetailsFile.metadata.filamentUsedGrams) }} g</span>
-                </div>
-                <div v-if="storageDetailsFile.metadata?.filamentType" class="pdv-storage-details__stat">
-                  <v-icon size="14">science</v-icon>
-                  <span>{{ storageDetailsFile.metadata.filamentType }}</span>
-                </div>
+            <!-- Identity panel beside the thumbnail. Reads as the
+                 "label" on the slice preview. Stats and slice profile
+                 move below so this stays focused on what the file is. -->
+            <div class="pdv-storage-details__identity">
+              <v-chip
+                v-if="storageDetailsFile.fileFormat"
+                size="small"
+                variant="tonal"
+                :color="storageFormatChipColor(storageDetailsFile.fileFormat)"
+                density="comfortable"
+                class="pdv-storage-details__chip"
+              >
+                {{ storageDetailsFile.fileFormat.toUpperCase() }}
+              </v-chip>
+              <div
+                class="pdv-storage-details__filename"
+                :title="displayFileName(storageDetailsFile)"
+              >
+                {{ displayFileName(storageDetailsFile) }}
               </div>
+            </div>
+          </div>
+
+          <v-divider class="my-3" />
+
+          <div class="text-overline text-medium-emphasis">Headline</div>
+          <div class="pdv-storage-details__stats pdv-storage-details__stats--below">
+            <div v-if="formatStorageSize(storageDetailsFile.fileSize)" class="pdv-storage-details__stat">
+              <v-icon size="14">data_usage</v-icon>
+              <span>{{ formatStorageSize(storageDetailsFile.fileSize) }}</span>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.gcodePrintTimeSeconds" class="pdv-storage-details__stat">
+              <v-icon size="14">schedule</v-icon>
+              <span>~{{ formatQueueDuration(storageDetailsFile.metadata.gcodePrintTimeSeconds) }}</span>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.filamentUsedGrams" class="pdv-storage-details__stat">
+              <v-icon size="14">fitness_center</v-icon>
+              <span>{{ Math.round(storageDetailsFile.metadata.filamentUsedGrams) }} g</span>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.filamentType" class="pdv-storage-details__stat">
+              <v-icon size="14">science</v-icon>
+              <span>{{ storageDetailsFile.metadata.filamentType }}</span>
             </div>
           </div>
 
@@ -3866,6 +3878,40 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-storage-details__primary {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Identity panel that lives beside the thumbnail — the dialog's
+   "label" area. Stays vertically centered against the 240px square
+   so a long filename wraps naturally without overflowing. */
+.pdv-storage-details__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pdv-storage-details__chip {
+  align-self: flex-start;
+}
+
+.pdv-storage-details__filename {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  word-break: break-word;
+  /* Cap at four lines on overly long filenames so the identity panel
+     never grows past the 240px thumbnail height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Stats row now sits under the identity panel instead of next to it. */
+.pdv-storage-details__stats--below {
+  margin-top: 6px;
 }
 
 .pdv-storage-details__stats {
