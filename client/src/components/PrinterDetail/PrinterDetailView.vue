@@ -8,50 +8,86 @@
     </v-btn>
   </div>
 
-  <div v-else class="pdv">
-    <!-- Top header: identity + live state -->
-    <div class="pdv-header">
-      <v-btn
-        icon="arrow_back"
-        variant="text"
-        size="small"
-        @click="router.back()"
-      />
-      <h2 class="pdv-title text-h6 ml-2 text-truncate" :title="printer.name">
-        {{ printer.name }}
-      </h2>
-      <v-chip
-        :color="stateChipColor"
-        size="small"
-        variant="elevated"
-        density="comfortable"
-        class="ml-3"
+  <div v-else class="pdv" :class="`pdv--${heroToneClass}`">
+    <!-- Sticky hero. Identity, state, and (when printing) the live
+         progress strip all in one block — the most important info stays
+         on screen even as the user scrolls deep into history. -->
+    <div class="pdv-hero-header">
+      <div class="pdv-hero-header__top">
+        <v-btn
+          icon="arrow_back"
+          variant="text"
+          size="small"
+          @click="router.back()"
+        />
+        <div class="pdv-hero-header__identity">
+          <h1 class="pdv-hero-header__name text-truncate" :title="printer.name">
+            {{ printer.name }}
+          </h1>
+          <div class="pdv-hero-header__meta">
+            <v-chip
+              :color="stateChipColor"
+              size="small"
+              variant="elevated"
+              density="comfortable"
+            >
+              <v-icon v-if="stateChipIcon" start size="14">{{ stateChipIcon }}</v-icon>
+              {{ stateChipText }}
+            </v-chip>
+            <span
+              v-if="firmwareMessage"
+              class="pdv-hero-header__fw text-truncate"
+              :title="firmwareMessage"
+            >
+              <v-icon size="12">chat</v-icon>
+              {{ firmwareMessage }}
+            </span>
+            <span class="pdv-hero-header__service text-medium-emphasis">
+              PrusaLink · <a :href="printer.printerURL" target="_blank" rel="noopener">{{ shortPrinterURL }}</a>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live progress strip — only when there's an active print. -->
+      <div
+        v-if="(isPrinting || isPaused) && currentJob?.progress"
+        class="pdv-hero-header__progress"
       >
-        {{ stateChipText }}
-      </v-chip>
-      <v-chip
-        v-if="firmwareMessage"
-        size="x-small"
-        variant="tonal"
-        color="grey-darken-2"
-        density="comfortable"
-        class="ml-2 pdv-fw-msg"
-        :title="firmwareMessage"
-      >
-        <v-icon size="12" start>chat</v-icon>
-        {{ firmwareMessage }}
-      </v-chip>
-      <v-spacer />
-      <v-btn
-        variant="text"
-        size="small"
-        prepend-icon="open_in_new"
-        :href="printer.printerURL"
-        target="_blank"
-        rel="noopener"
-      >
-        PrusaLink
-      </v-btn>
+        <div class="pdv-hero-header__progress-row">
+          <span class="pdv-hero-header__file text-truncate" :title="currentFileName ?? ''">
+            {{ currentFileName ?? '—' }}
+          </span>
+          <span class="pdv-hero-header__percent">
+            {{ progressPercent }}%
+          </span>
+        </div>
+        <v-progress-linear
+          :model-value="currentJob.progress.completion ?? 0"
+          :color="isPaused ? 'warning' : 'success'"
+          height="6"
+          rounded
+        />
+        <!-- Stats line: temps + elapsed + remaining + ETA clock. -->
+        <div class="pdv-stats">
+          <span v-if="toolTempStr" class="pdv-stats__item" :title="`Tool: ${toolTempStr}`">
+            <v-icon size="14">whatshot</v-icon> {{ toolTempStr }}
+          </span>
+          <span v-if="bedTempStr" class="pdv-stats__item" :title="`Bed: ${bedTempStr}`">
+            <v-icon size="14">bed</v-icon> {{ bedTempStr }}
+          </span>
+          <span class="pdv-stats__spacer" />
+          <span v-if="elapsedFormatted" class="pdv-stats__item" title="Time elapsed">
+            <v-icon size="14">history</v-icon> {{ elapsedFormatted }}
+          </span>
+          <span v-if="timeRemainingFormatted" class="pdv-stats__item" title="Time remaining">
+            <v-icon size="14">schedule</v-icon> {{ timeRemainingFormatted }}
+          </span>
+          <span v-if="etaClockFormatted" class="pdv-stats__item" title="Estimated finish">
+            <v-icon size="14">check_circle</v-icon> done {{ etaClockFormatted }}
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- Action toolbar — same affordances the FileExplorerSideNav
@@ -213,18 +249,17 @@
       <v-tabs-window-item value="overview">
         <v-row dense class="pa-3">
           <v-col cols="12" md="7">
-            <!-- Current print card -->
-            <v-card class="pdv-card" variant="tonal">
-              <v-card-title class="text-subtitle-1">
-                <v-icon class="mr-2" color="primary">play_arrow</v-icon>
-                Current print
-              </v-card-title>
-              <v-divider />
+            <!-- Current print card — sticky hero already shows file +
+                 progress + temps + ETA, so this card focuses on the
+                 thumbnail + slice metadata that don't fit up there. -->
+            <v-card class="pdv-card pdv-current-card" variant="tonal">
               <v-card-text>
-                <div v-if="!currentJob" class="pdv-empty">
-                  <v-icon size="48" color="medium-emphasis">pause_circle</v-icon>
-                  <p class="text-body-2 text-medium-emphasis mt-2">
-                    No active print.
+                <div v-if="!currentJob" class="pdv-empty pdv-empty--card">
+                  <v-icon size="56" color="medium-emphasis">pause_circle</v-icon>
+                  <p class="text-body-1 mt-2">No active print</p>
+                  <p class="text-caption text-medium-emphasis">
+                    Queue a file from below or hit "Send to print" on the next-up
+                    card to start one.
                   </p>
                 </div>
                 <div v-else class="pdv-current">
@@ -232,40 +267,37 @@
                     <v-img
                       v-if="thumbnail"
                       :src="'data:image/png;base64,' + thumbnail"
-                      max-height="200"
-                      contain
+                      max-height="240"
+                      cover
                     />
                     <v-icon v-else size="80" color="medium-emphasis">image</v-icon>
                   </div>
                   <div class="pdv-current__info">
-                    <div class="text-body-1 text-truncate" :title="currentFileName ?? ''">
+                    <div class="text-overline text-medium-emphasis">Now printing</div>
+                    <div class="text-h6 text-truncate pdv-current__name" :title="currentFileName ?? ''">
                       {{ currentFileName ?? '—' }}
                     </div>
-                    <v-progress-linear
-                      :model-value="(currentJob.progress?.completion ?? 0)"
-                      :indeterminate="!currentJob.progress?.completion"
-                      :color="isPaused ? 'warning' : 'success'"
-                      height="6"
-                      rounded
-                      class="mt-2"
-                    />
-                    <div class="d-flex align-center mt-1">
-                      <span class="text-h6">{{ progressPercent }}%</span>
-                      <span v-if="timeRemainingFormatted" class="text-body-2 ml-2">
-                        · {{ timeRemainingFormatted }}
-                      </span>
-                      <span v-if="etaClockFormatted" class="text-body-2 text-medium-emphasis ml-1">
-                        · done {{ etaClockFormatted }}
-                      </span>
-                    </div>
-                    <div class="d-flex mt-3 pdv-temps">
-                      <span v-if="toolTempStr" class="mr-3" title="Tool">
-                        🔥 {{ toolTempStr }}
-                      </span>
-                      <span v-if="bedTempStr" title="Bed">
-                        🛏 {{ bedTempStr }}
-                      </span>
-                    </div>
+                    <dl class="pdv-current__stats">
+                      <template v-if="currentFilamentSummary">
+                        <dt><v-icon size="14">fitness_center</v-icon> Filament</dt>
+                        <dd>{{ currentFilamentSummary }}</dd>
+                      </template>
+                      <template v-if="currentSliceMetadata?.layerHeight">
+                        <dt><v-icon size="14">layers</v-icon> Layer</dt>
+                        <dd>{{ currentSliceMetadata.layerHeight }} mm</dd>
+                      </template>
+                      <template v-if="currentSliceMetadata?.printerModel">
+                        <dt><v-icon size="14">precision_manufacturing</v-icon> Sliced for</dt>
+                        <dd>{{ currentSliceMetadata.printerModel }}</dd>
+                      </template>
+                      <template v-if="currentSliceMetadata?.nozzleTemperature || currentSliceMetadata?.bedTemperature">
+                        <dt><v-icon size="14">thermostat</v-icon> Setpoints</dt>
+                        <dd>
+                          {{ currentSliceMetadata.nozzleTemperature ?? '—' }}° /
+                          {{ currentSliceMetadata.bedTemperature ?? '—' }}°
+                        </dd>
+                      </template>
+                    </dl>
                   </div>
                 </div>
               </v-card-text>
@@ -1407,6 +1439,44 @@ const stateChipColor = computed(() => {
   if (!isOnline.value) return 'error'
   return 'grey-darken-1'
 })
+const stateChipIcon = computed<string | null>(() => {
+  if (printer.value?.disabledReason) return 'construction'
+  if (isPrinting.value) return 'play_arrow'
+  if (isPaused.value) return 'pause'
+  if (!isOnline.value) return 'wifi_off'
+  if (isOperational.value) return 'check_circle'
+  return null
+})
+
+// Tone class drives a subtle background tint on the page so the
+// operator can read the printer's status from peripheral vision —
+// green-tint while printing, orange-tint while paused, red-tint when
+// offline, otherwise neutral.
+const heroToneClass = computed<'printing' | 'paused' | 'offline' | 'maintenance' | 'idle'>(() => {
+  if (printer.value?.disabledReason) return 'maintenance'
+  if (!isOnline.value) return 'offline'
+  if (isPaused.value) return 'paused'
+  if (isPrinting.value) return 'printing'
+  return 'idle'
+})
+
+// Trim http(s):// + trailing slash so the header link reads "192.168.187.29"
+// not "http://192.168.187.29/". Keeps the meta row uncluttered.
+const shortPrinterURL = computed(() => {
+  const url = printer.value?.printerURL ?? ''
+  return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+})
+
+// Elapsed time of the current print, formatted compactly.
+const elapsedFormatted = computed<string | null>(() => {
+  const t = currentJob.value?.progress?.printTime
+  if (typeof t !== 'number' || t <= 0) return null
+  const h = Math.floor(t / 3600)
+  const m = Math.floor((t % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `${Math.floor(t)}s`
+})
 
 const isOnline = computed(() => socketState.value?.api === 'responding')
 const flags = computed(() => printerEvents.value?.current?.payload?.state?.flags)
@@ -1489,6 +1559,21 @@ const bedTempStr = computed(() => {
 const printerIdRef = computed(() => props.printerId)
 const { data: thumbnailRecord } = usePrinterTileThumbnailQuery(printerIdRef)
 const thumbnail = computed(() => thumbnailRecord.value?.thumbnailBase64 ?? '')
+// Slice-time metadata of the file the printer is currently running.
+// Pulled from the same enriched thumbnail endpoint so we don't double
+// up the request — the data is already in TanStack's cache.
+const currentSliceMetadata = computed(() => thumbnailRecord.value?.job?.metadata ?? null)
+
+// Filament summary handles both single-extruder (number) and MMU
+// (array of grams per filament) so the card stays useful for either.
+const currentFilamentSummary = computed<string | null>(() => {
+  const m = currentSliceMetadata.value
+  if (!m?.filamentUsedGrams) return null
+  const v = m.filamentUsedGrams
+  const total = Array.isArray(v) ? v.reduce((a, b) => a + (b ?? 0), 0) : v
+  if (!Number.isFinite(total) || total <= 0) return null
+  return m.filamentType ? `${Math.round(total)} g · ${m.filamentType}` : `${Math.round(total)} g`
+})
 
 // ── Queue ──
 const queue = ref<QueuedJob[]>([])
@@ -2106,22 +2191,126 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   text-align: center;
 }
 
-.pdv-header {
+/* ---- Hero header (sticky, state-tinted) ---- */
+.pdv-hero-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 14px 20px 12px;
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.pdv-hero-header__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pdv-hero-header__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-hero-header__name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.pdv-hero-header__meta {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
 }
 
-.pdv-title {
-  font-weight: 600;
-}
-
-.pdv-fw-msg {
+.pdv-hero-header__fw {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   max-width: 360px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.pdv-hero-header__service {
+  font-size: 12px;
+}
+.pdv-hero-header__service a {
+  color: inherit;
+  text-decoration: none;
+}
+.pdv-hero-header__service a:hover {
+  text-decoration: underline;
+}
+
+.pdv-hero-header__progress {
+  margin-top: 14px;
+}
+
+.pdv-hero-header__progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.pdv-hero-header__file {
+  font-size: 13px;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(var(--v-theme-on-surface), 0.85);
+}
+
+.pdv-hero-header__percent {
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle state tint on the hero so the printer's mood reads at a glance
+   before the operator parses any text. Stays muted enough not to fight
+   the content below. */
+.pdv--printing .pdv-hero-header {
+  background: linear-gradient(180deg, rgba(76, 175, 80, 0.08), rgb(var(--v-theme-surface)) 90%);
+}
+.pdv--paused .pdv-hero-header {
+  background: linear-gradient(180deg, rgba(255, 152, 0, 0.10), rgb(var(--v-theme-surface)) 90%);
+}
+.pdv--offline .pdv-hero-header {
+  background: linear-gradient(180deg, rgba(244, 67, 54, 0.08), rgb(var(--v-theme-surface)) 90%);
+}
+.pdv--maintenance .pdv-hero-header {
+  background: linear-gradient(180deg, rgba(255, 193, 7, 0.10), rgb(var(--v-theme-surface)) 90%);
+}
+
+/* ---- Stats strip (inline temps + elapsed + remaining + ETA) ---- */
+.pdv-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+.pdv-stats__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.pdv-stats__spacer {
+  flex: 1 1 auto;
 }
 
 .pdv-tabs {
@@ -2146,33 +2335,67 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   height: 100%;
 }
 
-.pdv-empty {
-  padding: 24px;
-  text-align: center;
+.pdv-current-card {
+  overflow: hidden;
 }
 
 .pdv-current {
   display: flex;
   gap: 16px;
+  align-items: stretch;
 }
 
 .pdv-current__thumb {
-  flex: 0 0 200px;
+  flex: 0 0 240px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.3);
   border-radius: 6px;
-  min-height: 180px;
+  min-height: 240px;
+  overflow: hidden;
 }
 
 .pdv-current__info {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.pdv-temps {
-  font-size: 14px;
+.pdv-current__name {
+  margin-top: 2px;
+  margin-bottom: 14px;
+}
+
+.pdv-current__stats {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 16px;
+  row-gap: 6px;
+  font-size: 13px;
+}
+.pdv-current__stats dt {
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pdv-current__stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdv-empty {
+  padding: 24px;
+  text-align: center;
+}
+.pdv-empty--card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 16px;
 }
 
 .pdv-queue-list {
