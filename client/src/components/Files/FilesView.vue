@@ -417,6 +417,10 @@
                 <v-icon>drive_file_move</v-icon>
                 <v-tooltip activator="parent" location="top">Move to folder</v-tooltip>
               </v-btn>
+              <v-btn icon size="small" variant="text" @click.stop="openRenameFile(file)">
+                <v-icon>drive_file_rename_outline</v-icon>
+                <v-tooltip activator="parent" location="top">Rename</v-tooltip>
+              </v-btn>
               <v-btn icon size="small" variant="text" color="info" :loading="analyzingFiles.has(file.fileStorageId)" @click.stop="analyzeFile(file)">
                 <v-icon>analytics</v-icon>
                 <v-tooltip activator="parent" location="top">Trigger analysis</v-tooltip>
@@ -580,6 +584,48 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- ─── Rename file dialog ──────────────────────────────── -->
+    <v-dialog
+      v-model="renameDialog.open"
+      max-width="480"
+      @keydown.esc="renameDialog.open = false"
+    >
+      <v-card>
+        <v-card-title class="d-flex align-center ga-2 text-subtitle-1">
+          <v-icon size="small">drive_file_rename_outline</v-icon>
+          Rename file
+        </v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameDialog.name"
+            label="File name"
+            :suffix="renameDialog.ext"
+            variant="outlined"
+            density="compact"
+            autofocus
+            hide-details="auto"
+            :error-messages="renameDialog.error ? [renameDialog.error] : []"
+            @keydown.enter="submitRename()"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="renameDialog.busy" @click="renameDialog.open = false">
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            :loading="renameDialog.busy"
+            :disabled="!renameDialog.name.trim()"
+            @click="submitRename()"
+          >
+            Rename
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -643,6 +689,22 @@ const moveDialog = reactive<{
   open: false,
   file: null,
   targetPath: '',
+  busy: false,
+  error: null
+})
+
+const renameDialog = reactive<{
+  open: boolean
+  file: FileMetadata | null
+  name: string
+  ext: string
+  busy: boolean
+  error: string | null
+}>({
+  open: false,
+  file: null,
+  name: '',
+  ext: '',
   busy: false,
   error: null
 })
@@ -968,6 +1030,39 @@ async function submitMoveDialog() {
       err?.response?.data?.error || err?.message || 'Move failed'
   } finally {
     moveDialog.busy = false
+  }
+}
+
+function openRenameFile(file: FileMetadata) {
+  const full = displayFileName(file)
+  const dot = full.lastIndexOf('.')
+  renameDialog.file = file
+  renameDialog.ext = dot > 0 ? full.slice(dot) : ''
+  renameDialog.name = dot > 0 ? full.slice(0, dot) : full
+  renameDialog.error = null
+  renameDialog.open = true
+}
+
+async function submitRename() {
+  if (!renameDialog.file) return
+  const base = renameDialog.name.trim()
+  if (!base) {
+    renameDialog.error = 'A name is required'
+    return
+  }
+
+  renameDialog.busy = true
+  renameDialog.error = null
+  try {
+    await FileStorageService.renameFile(renameDialog.file.fileStorageId, base + renameDialog.ext)
+    snackbar.info('File renamed')
+    renameDialog.open = false
+    await loadFiles()
+  } catch (err: any) {
+    renameDialog.error =
+      err?.response?.data?.error || err?.message || 'Rename failed'
+  } finally {
+    renameDialog.busy = false
   }
 }
 

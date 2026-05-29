@@ -255,6 +255,56 @@ export class FileStorageController {
     res.send({ fileStorageId, folderPath: normalised });
   }
 
+  @PATCH()
+  @route("/:fileStorageId/rename")
+  async renameFile(req: Request, res: Response) {
+    const { fileStorageId } = req.params as { fileStorageId: string };
+    const body = req.body as { name?: unknown };
+
+    const exists = await this.fileStorageService.fileExists(fileStorageId);
+    if (!exists) {
+      res.status(404).send({ error: "File not found" });
+      return;
+    }
+
+    const rawName = typeof body?.name === "string" ? body.name.trim() : "";
+    if (!rawName) {
+      throw new BadRequestException("A new file name is required");
+    }
+    if (rawName.includes("/") || rawName.includes("\\")) {
+      throw new BadRequestException("File name cannot contain path separators");
+    }
+
+    const meta = await this.fileStorageService.loadMetadata(fileStorageId);
+    const currentName: string = meta?._originalFileName ?? fileStorageId;
+    const folderPath: string | null = meta?._folderPath ?? null;
+
+    // Preserve the original extension so a rename can never change the file
+    // format (e.g. .bgcode → .gcode), which would break printing.
+    const ext = extname(currentName);
+    const base = rawName.toLowerCase().endsWith(ext.toLowerCase())
+      ? rawName.slice(0, rawName.length - ext.length)
+      : rawName;
+    const newName = `${base}${ext}`;
+
+    if (newName === currentName) {
+      res.send({ fileStorageId, fileName: newName });
+      return;
+    }
+
+    // Per-folder name uniqueness, ignoring the file being renamed.
+    const clash = await this.fileStorageService.findDuplicateByOriginalFileName(newName, folderPath);
+    if (clash && clash.fileStorageId !== fileStorageId) {
+      throw new ConflictException(
+        `A file named "${newName}" already exists ${folderPath ? `in folder "${folderPath}"` : "in the root folder"}. Choose a different name.`,
+        clash.fileStorageId,
+      );
+    }
+
+    await this.fileStorageService.setOriginalFileName(fileStorageId, newName);
+    res.send({ fileStorageId, fileName: newName });
+  }
+
   /**
    * Get file metadata
    * GET /api/file-storage/:fileStorageId

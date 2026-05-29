@@ -131,6 +131,11 @@ export class FileStorageService extends BaseService {
     return response.data
   }
 
+  /** Rename a file (keeps its original extension server-side). */
+  static async renameFile(fileStorageId: string, name: string): Promise<{ fileStorageId: string; fileName: string }> {
+    return this.patch(`/api/v2/file-storage/${fileStorageId}/rename`, { name })
+  }
+
   /** Download a folder (and its subtree) as a .zip, named after the folder. */
   static async exportFolderZip(path: string): Promise<void> {
     const response = await this.getDownload<ArrayBuffer>(
