@@ -868,7 +868,7 @@
                             :loading="addingStorageId === f.fileStorageId"
                             @click.stop="addStorageToQueue(f)"
                           >
-                            <v-icon size="18" color="success">add</v-icon>
+                            <v-icon size="18" color="success">add_to_queue</v-icon>
                           </v-btn>
                         </template>
                       </v-tooltip>
@@ -1095,7 +1095,7 @@
                             :loading="addingToQueuePath === f.path"
                             @click.stop="addUsbToQueue(f)"
                           >
-                            <v-icon size="18" color="success">add</v-icon>
+                            <v-icon size="18" color="success">add_to_queue</v-icon>
                           </v-btn>
                         </template>
                       </v-tooltip>
@@ -1740,7 +1740,7 @@
           <v-btn
             color="success"
             variant="flat"
-            prepend-icon="add"
+            prepend-icon="add_to_queue"
             :disabled="!isOnline || addingStorageId === storageDetailsFile.fileStorageId"
             :loading="addingStorageId === storageDetailsFile.fileStorageId"
             @click="addStorageToQueue(storageDetailsFile).then(() => (storageDetailsOpen = false))"
