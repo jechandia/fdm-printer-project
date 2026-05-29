@@ -554,7 +554,7 @@
                   <v-list-item
                     v-for="f in filteredStorageFiles"
                     :key="`sff:${f.fileStorageId}`"
-                    :title="f.fileName"
+                    :title="displayFileName(f)"
                     :subtitle="storageFileSubtitle(f)"
                   >
                     <template #prepend>
@@ -1171,6 +1171,7 @@ import { useSnackbar } from '@/shared/snackbar.composable'
 import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { notifyPrintJobsChanged } from '@/shared/print-jobs-invalidator.composable'
 import { derivePrinterAttention } from '@/shared/printer-attention.util'
+import { displayFileName } from '@/utils/file-name.util'
 import FileThumbnailCell from '@/components/Files/FileThumbnailCell.vue'
 
 const props = defineProps<{ printerId: number }>()
@@ -1390,7 +1391,14 @@ async function removeFromQueue(job: QueuedJob) {
 // (compact, no seconds component, fall back to file path when neither
 // a display name nor file name is present).
 function displayQueueName(job: QueuedJob): string {
-  return job.usbDisplayName ?? job.fileName ?? job.usbFilePath ?? '—'
+  // USB jobs carry a slicer-friendly display name from the printer;
+  // queue rows from file-storage need to lean on the shared helper,
+  // which strips hash/timestamp prefixes and prefers `_originalFileName`
+  // out of the analysed metadata.
+  if (job.usbDisplayName?.trim()) return job.usbDisplayName
+  const fromHelper = displayFileName(job, '')
+  if (fromHelper) return fromHelper
+  return job.usbFilePath ?? '—'
 }
 function formatHeroFileSize(bytes: number | null | undefined): string {
   if (!bytes || bytes <= 0) return ''
