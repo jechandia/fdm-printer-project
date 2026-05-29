@@ -30,6 +30,10 @@ interface QueueEventPayload {
   printerId?: number;
   jobId?: number;
   reason?: string;
+  // Server sets `cancelled: true` on the failed event when the dispatch
+  // was aborted by user request (vs. a real upload failure). Client uses
+  // it to pick a friendlier toast — same code path, different copy.
+  cancelled?: boolean;
 }
 
 interface PrinterThumbnailChangedPayload {
@@ -277,10 +281,19 @@ export class SocketIoService {
     appSocketIO.on(IO_MESSAGES.QueueEvent, (data: QueueEventPayload) => {
       const printerLabel = data.printerId ? `printer ${data.printerId}` : "printer";
       if (data.kind === "failed") {
-        this.snackbar.openErrorMessage({
-          title: `Dispatch to ${printerLabel} failed`,
-          subtitle: data.reason ?? "Unknown error",
-        });
+        if (data.cancelled) {
+          // Cancel-by-user is informational, not an error. Match the
+          // "X cancelled" wording used elsewhere for terminal cancels.
+          this.snackbar.openInfoMessage({
+            title: `Dispatch to ${printerLabel} cancelled`,
+            warning: true,
+          });
+        } else {
+          this.snackbar.openErrorMessage({
+            title: `Dispatch to ${printerLabel} failed`,
+            subtitle: data.reason ?? "Unknown error",
+          });
+        }
       } else if (data.kind === "submitted") {
         this.snackbar.openInfoMessage({
           title: `Dispatched job to ${printerLabel}`,

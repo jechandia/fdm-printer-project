@@ -126,9 +126,9 @@
         <div class="pg-tile__body">
           <div
             class="pg-tile__thumb"
-            :class="{ 'pg-tile__thumb--clickable': thumbnail?.length }"
-            :title="thumbnail?.length ? 'View larger preview' : undefined"
-            @click.stop.prevent="thumbnail?.length && (previewOpen = true)"
+            :class="{ 'pg-tile__thumb--clickable': previewCanOpen }"
+            :title="previewCanOpen ? (thumbnail?.length ? 'View larger preview' : 'View print info') : undefined"
+            @click.stop.prevent="previewCanOpen && (previewOpen = true)"
           >
             <v-img
               v-if="isOnline && thumbnail?.length"
@@ -199,9 +199,9 @@
 
             <div class="pg-tile__meta">
               <v-tooltip
-                :disabled="!printer?.disabledReason"
+                :disabled="!stateChipTooltip"
                 location="top"
-                :text="printer?.disabledReason ?? ''"
+                :text="stateChipTooltip"
               >
                 <template #activator="{ props }">
                   <v-chip
@@ -231,6 +231,19 @@
               >
                 ↑ {{ uploadProgress.percent }}%
               </span>
+              <v-btn
+                v-if="uploadProgress"
+                size="x-small"
+                variant="text"
+                density="comfortable"
+                icon
+                class="pg-tile__cancel-upload"
+                :loading="cancelInFlight"
+                title="Cancel transfer"
+                @click.stop.prevent="cancelDispatch()"
+              >
+                <v-icon size="14">cancel</v-icon>
+              </v-btn>
               <span
                 v-else-if="currentProgress !== undefined"
                 class="pg-tile__percent"
@@ -375,6 +388,7 @@ import { interpretStates } from '@/shared/printer-state.constants'
 import { usePrinterStateStore } from '@/store/printer-state.store'
 import { PrinterDto } from '@/models/printers/printer.model'
 import { useSnackbar } from '@/shared/snackbar.composable'
+import { PrintQueueService } from '@/backend/print-queue.service'
 import { useDialog } from '@/shared/dialog.composable'
 import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/queries/printer-tile-thumbnail.query'
 import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
@@ -432,6 +446,39 @@ useOnPrinterThumbnailChanged((event) => {
 
 const previewOpen = ref(false)
 const detailOpen = ref(false)
+const cancelInFlight = ref(false)
+
+// We let the preview open whenever there's ANY meaningful thing to show
+// for this printer — a thumbnail OR slice metadata pulled from the
+// active job. Surface-area-wise that means: jobs whose analyzer ran but
+// produced an empty `_thumbnails: []` still get a clickable tile so the
+// user can see filament/time/model without giving up on the click
+// affordance.
+const previewCanOpen = computed(
+  () => !!thumbnail.value?.length || !!thumbnailRecord.value?.job?.metadata,
+)
+
+async function cancelDispatch() {
+  if (!printerId.value || cancelInFlight.value) return
+  cancelInFlight.value = true
+  try {
+    await PrintQueueService.cancelDispatch(printerId.value)
+    // Don't toast on success — the server's `jobSubmissionFailed` event
+    // (with `cancelled: true`) fires the toast through socketio.service
+    // so cancel-by-keystroke and cancel-by-network-drop produce the same
+    // user-facing notification.
+  } catch (e: any) {
+    // 404 means "nothing to cancel" — also benign, just noise.
+    if (e?.response?.status !== 404) {
+      snackbar.openErrorMessage({
+        title: 'Could not cancel transfer',
+        subtitle: e?.message ?? 'Unknown error',
+      })
+    }
+  } finally {
+    cancelInFlight.value = false
+  }
+}
 const previewMetadata = computed(() => thumbnailRecord.value?.job?.metadata ?? null)
 const previewEstimatedSeconds = computed(() => thumbnailRecord.value?.job?.estimatedSeconds ?? null)
 const previewFileName = computed(
@@ -599,6 +646,28 @@ const etaClockFormatted = computed<string | null>(() => {
   const mm = String(eta.getMinutes()).padStart(2, '0')
   const sameDay = eta.toDateString() === new Date().toDateString()
   return sameDay ? `${hh}:${mm}` : `${hh}:${mm} +1d`
+})
+
+// PrusaLink's `status_printer.message` mirrored into the polled payload
+// — used to enrich the chip's tooltip with the firmware's own
+// description of the current state, regardless of whether the attention
+// strip is firing. Empty / "ok" / "OK" is treated as no message.
+// Combined tooltip for the state chip. Maintenance reason wins (it's the
+// explicit operator-set explanation); otherwise the firmware message
+// fills in for non-obvious states (errors, transient holds, etc.).
+const stateChipTooltip = computed<string>(() => {
+  if (props.printer?.disabledReason) return props.printer.disabledReason
+  return firmwareMessage.value ?? ''
+})
+
+const firmwareMessage = computed<string | null>(() => {
+  if (!printerId.value) return null
+  const payload = printerStateStore.printerEventsById[printerId.value]?.current?.payload as any
+  const msg = payload?.printerMessage
+  if (!msg || typeof msg !== 'string') return null
+  const trimmed = msg.trim()
+  if (!trimmed || trimmed.toLowerCase() === 'ok') return null
+  return trimmed
 })
 
 // "Last seen Xm ago" hint for offline/unreachable printers. The
