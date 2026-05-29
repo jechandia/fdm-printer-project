@@ -1533,34 +1533,34 @@
               />
             </div>
             <!-- Identity panel beside the thumbnail: the "title" of
-                 the dialog. Chip + filename + X live in one row at the
-                 top so close is anchored to what it's closing, and
-                 the headline stats stack underneath. -->
+                 the dialog. Format chip sits as a kicker above the
+                 filename; the X is anchored absolutely to the top
+                 right of this section so it stays put regardless of
+                 how many lines the filename wraps to. -->
             <div class="pdv-storage-details__identity">
-              <div class="pdv-storage-details__titlebar">
-                <v-chip
-                  v-if="storageDetailsFile.fileFormat"
-                  size="small"
-                  variant="tonal"
-                  :color="storageFormatChipColor(storageDetailsFile.fileFormat)"
-                  density="comfortable"
-                >
-                  {{ storageDetailsFile.fileFormat.toUpperCase() }}
-                </v-chip>
-                <div
-                  class="pdv-storage-details__filename"
-                  :title="displayFileName(storageDetailsFile)"
-                >
-                  {{ displayFileName(storageDetailsFile) }}
-                </div>
-                <v-btn
-                  icon="close"
-                  variant="text"
-                  size="small"
-                  density="comfortable"
-                  class="pdv-storage-details__close"
-                  @click="storageDetailsOpen = false"
-                />
+              <v-btn
+                icon="close"
+                variant="text"
+                size="small"
+                density="comfortable"
+                class="pdv-storage-details__close"
+                @click="storageDetailsOpen = false"
+              />
+              <v-chip
+                v-if="storageDetailsFile.fileFormat"
+                size="small"
+                variant="tonal"
+                :color="storageFormatChipColor(storageDetailsFile.fileFormat)"
+                density="comfortable"
+                class="pdv-storage-details__chip"
+              >
+                {{ storageDetailsFile.fileFormat.toUpperCase() }}
+              </v-chip>
+              <div
+                class="pdv-storage-details__filename"
+                :title="displayFileName(storageDetailsFile)"
+              >
+                {{ displayFileName(storageDetailsFile) }}
               </div>
               <div class="pdv-storage-details__stats">
                 <div v-if="formatStorageSize(storageDetailsFile.fileSize)" class="pdv-storage-details__stat">
@@ -3874,33 +3874,31 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   min-width: 0;
 }
 
-/* Identity panel beside the thumbnail. Acts as the dialog's title
-   block + headline summary — title row up top (chip + name + close)
-   so X is anchored to what it's closing, headline stats stack
-   underneath. */
+/* Identity panel beside the thumbnail. Vertical flow:
+   format-chip kicker → filename → headline stats. Close button is
+   positioned absolutely in the top-right corner so it doesn't shift
+   when the filename wraps to multiple lines. */
 .pdv-storage-details__identity {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  /* Reserve room so a long filename doesn't crash into the X button. */
+  padding-right: 36px;
 }
 
-.pdv-storage-details__titlebar {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
+.pdv-storage-details__chip {
+  align-self: flex-start;
 }
 
 .pdv-storage-details__filename {
-  flex: 1 1 auto;
-  min-width: 0;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.3;
   word-break: break-word;
-  /* Cap at four lines on overly long filenames so the title row
+  /* Cap at four lines on overly long filenames so the identity panel
      never grows past the 240px thumbnail height. */
   display: -webkit-box;
   -webkit-line-clamp: 4;
@@ -3909,9 +3907,9 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 
 .pdv-storage-details__close {
-  flex-shrink: 0;
-  margin-top: -4px;
-  margin-right: -4px;
+  position: absolute;
+  top: -4px;
+  right: -4px;
 }
 
 .pdv-storage-details__stats {
