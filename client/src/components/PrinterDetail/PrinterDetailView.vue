@@ -1028,94 +1028,47 @@
       <!-- ========== SETTINGS ========== -->
       <v-tabs-window-item value="settings">
         <div class="pa-3">
+          <div class="d-flex align-center mb-3">
+            <span class="text-overline text-medium-emphasis">Printer configuration</span>
+            <v-spacer />
+            <v-btn
+              size="small"
+              color="primary"
+              variant="tonal"
+              prepend-icon="edit"
+              @click="openEditDialog"
+            >
+              Edit printer
+            </v-btn>
+          </div>
+
           <v-row dense>
-            <v-col cols="12" md="7">
-              <!-- Editable form. Mirrors AddOrUpdatePrinterDialog field-
-                   for-field; submitting calls the same updatePrinter
-                   endpoint with `forceSave=false`. We don't try to inline
-                   the test/check panel — that's still one click away via
-                   "Edit in dialog" below. -->
+            <v-col cols="12" md="6">
               <v-card variant="tonal" class="pdv-card">
-                <v-card-title class="text-subtitle-1 d-flex align-center">
-                  <v-icon class="mr-2" color="primary">tune</v-icon>
-                  Printer configuration
-                  <v-spacer />
-                  <v-btn
-                    size="small"
-                    variant="text"
-                    prepend-icon="open_in_full"
-                    title="Open in the full edit dialog (test connection, force save, duplicate)"
-                    @click="openEditDialog"
-                  >
-                    Advanced
-                  </v-btn>
+                <v-card-title class="text-subtitle-1">
+                  <v-icon class="mr-2" color="primary">info</v-icon>
+                  Connection
                 </v-card-title>
                 <v-divider />
                 <v-card-text>
-                  <v-text-field
-                    v-model="settingsForm.name"
-                    label="Name"
-                    density="compact"
-                    class="mb-2"
-                  />
-                  <v-text-field
-                    v-model="settingsForm.printerURL"
-                    label="URL"
-                    hint="e.g. http://192.168.187.29"
-                    persistent-hint
-                    density="compact"
-                    class="mb-2"
-                  />
-                  <v-row dense>
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="settingsForm.username"
-                        label="Username"
-                        autocomplete="username"
-                        density="compact"
-                      />
-                    </v-col>
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="settingsForm.password"
-                        label="Password"
-                        type="password"
-                        autocomplete="current-password"
-                        density="compact"
-                      />
-                    </v-col>
-                  </v-row>
-                  <v-switch
-                    v-model="settingsForm.enabled"
-                    label="Enabled"
-                    color="primary"
-                    density="compact"
-                    hide-details
-                    class="mt-1"
-                  />
-                  <div class="d-flex mt-3">
-                    <v-btn
-                      variant="text"
-                      :disabled="!settingsDirty || settingsSaving"
-                      @click="resetSettingsForm"
-                    >
-                      Discard changes
-                    </v-btn>
-                    <v-spacer />
-                    <v-btn
-                      color="primary"
-                      :disabled="!settingsDirty"
-                      :loading="settingsSaving"
-                      @click="saveSettings"
-                    >
-                      Save
-                    </v-btn>
-                  </div>
+                  <dl class="pdv-info">
+                    <dt>Name</dt><dd>{{ printer.name }}</dd>
+                    <dt>URL</dt><dd>
+                      <a :href="printer.printerURL" target="_blank" rel="noopener">
+                        {{ printer.printerURL }}
+                      </a>
+                    </dd>
+                    <dt>Type</dt><dd>{{ printerTypeLabel }}</dd>
+                    <dt>Enabled</dt><dd>{{ printer.enabled ? 'Yes' : 'No' }}</dd>
+                    <dt v-if="printer.disabledReason">Reason</dt>
+                    <dd v-if="printer.disabledReason">{{ printer.disabledReason }}</dd>
+                    <dt>Created</dt>
+                    <dd>{{ formatDateOrDash(printer.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
+                  </dl>
                 </v-card-text>
               </v-card>
             </v-col>
-
-            <v-col cols="12" md="5">
+            <v-col cols="12" md="6">
               <v-card variant="tonal" class="pdv-card">
                 <v-card-title class="text-subtitle-1">
                   <v-icon class="mr-2" color="primary">memory</v-icon>
@@ -1124,16 +1077,11 @@
                 <v-divider />
                 <v-card-text>
                   <dl class="pdv-info">
-                    <dt>Type</dt><dd>{{ printerTypeLabel }}</dd>
                     <dt>Socket</dt><dd>{{ socketStateText }}</dd>
                     <dt>API</dt><dd>{{ apiStateText }}</dd>
                     <dt>State</dt><dd>{{ printerState?.text ?? '—' }}</dd>
                     <dt>Last update</dt>
                     <dd :title="lastSeenIso ?? ''">{{ lastSeenLabel }}</dd>
-                    <dt v-if="printer.disabledReason">Reason</dt>
-                    <dd v-if="printer.disabledReason">{{ printer.disabledReason }}</dd>
-                    <dt>Created</dt>
-                    <dd>{{ formatDateOrDash(printer.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
                   </dl>
                 </v-card-text>
               </v-card>
@@ -1160,7 +1108,6 @@ import type { FileMetadata, FolderInfo } from '@/backend/file-storage.service'
 import { PrintersService } from '@/backend/printers.service'
 import { CameraStreamService } from '@/backend/camera-stream.service'
 import type { CameraStream } from '@/models/camera-streams/camera-stream'
-import type { CreatePrinter } from '@/models/printers/create-printer.model'
 import type { PrinterMaintenanceLog } from '@/models/printers/printer-maintenance-log.model'
 import type { FilesDto, FileDto } from '@/models/printers/printer-file.model'
 import { usePrinterTileThumbnailQuery } from '@/queries/printer-tile-thumbnail.query'
@@ -1222,8 +1169,6 @@ async function openControlDialog() {
 async function openEditDialog() {
   if (!props.printerId) return
   await addOrUpdateDialog.openDialog({ id: props.printerId })
-  // Re-sync the form with whatever the dialog left behind on save.
-  resetSettingsForm()
 }
 
 // ── Print lifecycle actions (mirrors FileExplorerSideNav) ──
@@ -1445,114 +1390,10 @@ async function clearQueue() {
   }
 }
 
-// ── Settings form (inline edit) ──
-interface SettingsFormShape {
-  name: string
-  printerURL: string
-  username: string
-  password: string
-  enabled: boolean
-}
-// Initialise the ref with safe empty values; the watcher on `printer`
-// (further down) re-syncs it once the store hands us the real data.
-// Doing it eagerly here would TDZ — `printer` is declared after this
-// block in the setup script, and `buildFormFromPrinter()` reads it.
-const settingsForm = ref<SettingsFormShape>({
-  name: '',
-  printerURL: '',
-  // `password` and `username` are write-mostly server-side — the GET
-  // returns them masked / not at all. Start empty and let the operator
-  // re-enter when they actually want to change them.
-  username: '',
-  password: '',
-  enabled: true,
-})
-const settingsSaving = ref(false)
-
-function buildFormFromPrinter(): SettingsFormShape {
-  return {
-    name: printer.value?.name ?? '',
-    printerURL: printer.value?.printerURL ?? '',
-    username: '',
-    password: '',
-    enabled: printer.value?.enabled ?? true,
-  }
-}
-
-const settingsDirty = computed(() => {
-  if (!printer.value) return false
-  return (
-    settingsForm.value.name !== (printer.value.name ?? '') ||
-    settingsForm.value.printerURL !== (printer.value.printerURL ?? '') ||
-    settingsForm.value.enabled !== (printer.value.enabled ?? true) ||
-    settingsForm.value.username !== '' ||
-    settingsForm.value.password !== ''
-  )
-})
-
-function resetSettingsForm() {
-  settingsForm.value = buildFormFromPrinter()
-}
-
-async function saveSettings() {
-  if (!printer.value || !props.printerId) return
-  settingsSaving.value = true
-  try {
-    // `updatePrinter` wants the full CreatePrinter shape. Carry forward
-    // whatever the store already knows about the printer (type / api
-    // key) so we don't accidentally clear those server-side.
-    const payload: CreatePrinter = {
-      id: printer.value.id,
-      name: settingsForm.value.name.trim(),
-      printerURL: settingsForm.value.printerURL.trim(),
-      // Empty strings mean "leave existing creds alone" on the backend
-      // shape used by AddOrUpdatePrinterDialog. Re-validate by hand if
-      // you want to actively clear credentials — use the full dialog.
-      username: settingsForm.value.username,
-      password: settingsForm.value.password,
-      apiKey: (printer.value as { apiKey?: string }).apiKey ?? '',
-      printerType: printer.value.printerType ?? 0,
-      enabled: settingsForm.value.enabled,
-    }
-    await PrintersService.updatePrinter(props.printerId, payload, false)
-    snackbar.openInfoMessage({ title: 'Printer updated', subtitle: payload.name })
-    resetSettingsForm()
-  } catch (e: any) {
-    snackbar.openErrorMessage({
-      title: 'Could not save changes',
-      subtitle: e?.message ?? 'Unknown error',
-    })
-  } finally {
-    settingsSaving.value = false
-  }
-}
-
-// Initial-seed flag is declared up here so the watcher below (which lives
-// after `printer` is declared, to dodge TDZ from `immediate: true`) can
-// flip it on first fire.
-let settingsFormSeeded = false
-
 // ── Printer + live state ──
 const printer = computed(() => printerStore.printer(props.printerId))
 const printerEvents = computed(() => printerStateStore.printerEventsById[props.printerId])
 const socketState = computed(() => printerStateStore.socketStatesById[props.printerId])
-
-// Settings form seed watcher — has to live AFTER `printer` is declared
-// because `{ immediate: true }` fires the source function during setup,
-// and that source reads `printer.value`. Declaring it earlier hit TDZ.
-watch(
-  () => printer.value,
-  (next) => {
-    if (!next) return
-    if (!settingsFormSeeded) {
-      resetSettingsForm()
-      settingsFormSeeded = true
-      return
-    }
-    if (!settingsDirty.value) resetSettingsForm()
-  },
-  { deep: true, immediate: true },
-)
 const printerState = computed(() => {
   if (!printer.value) return null
   return interpretStates(printer.value, socketState.value, printerEvents.value)
