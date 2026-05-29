@@ -390,10 +390,32 @@
                        doesn't have to scan back up to the toolbar to
                        dispatch. -->
                   <article class="pdv-hero" :class="{ 'pdv-hero--starting': queue[0].status === 'STARTING' }">
-                    <div class="pdv-hero__label">
-                      <v-icon size="x-small">north_east</v-icon>
-                      Next up
+                    <!-- Top row: label + remove. The X gets pinned to
+                         the upper-right of the hero so it has a
+                         consistent corner regardless of how the
+                         filename wraps below. -->
+                    <div class="pdv-hero__top">
+                      <div class="pdv-hero__label">
+                        <v-icon size="x-small">north_east</v-icon>
+                        Next up
+                      </div>
+                      <v-btn
+                        size="x-small"
+                        variant="text"
+                        icon
+                        title="Remove from queue"
+                        :loading="removingQueueId === queue[0].id"
+                        @click="removeFromQueue(queue[0])"
+                      >
+                        <v-icon size="16">close</v-icon>
+                      </v-btn>
                     </div>
+
+                    <!-- Body: thumbnail + identity. Filename is free
+                         to wrap to any number of lines because the
+                         operator needs to confirm the full file before
+                         dispatching. Stats and chip live in a kicker
+                         row above the name so they don't compete. -->
                     <div class="pdv-hero__body">
                       <div class="pdv-hero__thumb">
                         <FileThumbnailCell
@@ -406,13 +428,16 @@
                         </v-icon>
                       </div>
                       <div class="pdv-hero__info">
-                        <div
-                          class="pdv-hero__name"
-                          :title="displayQueueName(queue[0])"
-                        >
-                          {{ displayQueueName(queue[0]) }}
-                        </div>
-                        <div class="pdv-hero__meta">
+                        <div class="pdv-hero__kicker">
+                          <v-chip
+                            v-if="queue[0].fileFormat"
+                            size="x-small"
+                            variant="tonal"
+                            :color="storageFormatChipColor(queue[0].fileFormat)"
+                            density="comfortable"
+                          >
+                            {{ queue[0].fileFormat.toUpperCase() }}
+                          </v-chip>
                           <v-chip
                             v-if="queue[0].status === 'STARTING'"
                             size="x-small"
@@ -423,17 +448,17 @@
                             Transferring…
                           </v-chip>
                           <span
-                            v-if="queue[0].fileFormat"
-                            class="text-caption text-medium-emphasis"
-                          >
-                            {{ queue[0].fileFormat.toUpperCase() }}
-                          </span>
-                          <span
                             v-if="queue[0].fileSize"
                             class="text-caption text-medium-emphasis"
                           >
-                            · {{ formatHeroFileSize(queue[0].fileSize) }}
+                            {{ formatHeroFileSize(queue[0].fileSize) }}
                           </span>
+                        </div>
+                        <div
+                          class="pdv-hero__name"
+                          :title="displayQueueName(queue[0])"
+                        >
+                          {{ displayQueueName(queue[0]) }}
                         </div>
                         <div class="pdv-hero__stats">
                           <div v-if="queue[0].estimatedTimeSeconds" class="pdv-hero__stat">
@@ -450,29 +475,23 @@
                           </div>
                         </div>
                       </div>
-                      <div class="pdv-hero__actions">
-                        <v-btn
-                          size="small"
-                          variant="flat"
-                          color="success"
-                          prepend-icon="play_arrow"
-                          :disabled="!isOnline || !isOperational || queueProcessingNext || queue[0].status === 'STARTING'"
-                          :loading="queueProcessingNext"
-                          @click="processNextInQueue"
-                        >
-                          Send to print
-                        </v-btn>
-                        <v-btn
-                          size="x-small"
-                          variant="text"
-                          icon
-                          title="Remove from queue"
-                          :loading="removingQueueId === queue[0].id"
-                          @click="removeFromQueue(queue[0])"
-                        >
-                          <v-icon size="16">close</v-icon>
-                        </v-btn>
-                      </div>
+                    </div>
+
+                    <!-- Action bar lives on its own row at the bottom
+                         of the hero. Frees the body to use the full
+                         card width for the filename. -->
+                    <div class="pdv-hero__actionbar">
+                      <v-btn
+                        size="small"
+                        variant="flat"
+                        color="success"
+                        prepend-icon="play_arrow"
+                        :disabled="!isOnline || !isOperational || queueProcessingNext || queue[0].status === 'STARTING'"
+                        :loading="queueProcessingNext"
+                        @click="processNextInQueue"
+                      >
+                        Send to print
+                      </v-btn>
                     </div>
                   </article>
 
@@ -3506,6 +3525,13 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   );
 }
 
+.pdv-hero__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .pdv-hero__label {
   display: inline-flex;
   align-items: center;
@@ -3515,12 +3541,11 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   letter-spacing: 0.06em;
   font-weight: 700;
   color: rgba(var(--v-theme-primary), 0.85);
-  margin-bottom: 8px;
 }
 
 .pdv-hero__body {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
 }
 
@@ -3536,11 +3561,20 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   overflow: hidden;
 }
 
-.pdv-hero__thumb :deep(img),
-.pdv-hero__thumb :deep(.v-img) {
+.pdv-hero__thumb :deep(.thumbnail-container) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  border-radius: 0;
+}
+.pdv-hero__thumb :deep(*) {
+  pointer-events: none;
+}
+.pdv-hero__thumb :deep(img),
+.pdv-hero__thumb :deep(.v-img),
+.pdv-hero__thumb :deep(.thumbnail-image) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pdv-hero__info {
@@ -3548,20 +3582,26 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   min-width: 0;
 }
 
-.pdv-hero__name {
-  font-weight: 600;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pdv-hero__meta {
+/* Kicker row above the filename — format chip + transferring chip +
+   file size. Keeps the filename's own line uncluttered so it can use
+   the full width to wrap. */
+.pdv-hero__kicker {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* Filename: always shown in full. The whole point of the hero card is
+   to let the operator confirm what they're about to dispatch, so the
+   name wraps to as many lines as it needs instead of truncating. */
+.pdv-hero__name {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .pdv-hero__stats {
@@ -3579,12 +3619,13 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   gap: 3px;
 }
 
-.pdv-hero__actions {
+/* Bottom action bar — Send to print sits on its own row aligned right
+   so the body above can spread to the full card width for the
+   filename instead of fighting for horizontal room. */
+.pdv-hero__actionbar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .pdv-chart {
