@@ -340,7 +340,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import PrinterTilePreviewDialog from './PrinterTilePreviewDialog.vue'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
-import logoPng from '@/assets/logo.png'
+import logoPng from '@/assets/logo.svg'
 
 const defaultColor = 'rgba(100,100,100,0.1)'
 

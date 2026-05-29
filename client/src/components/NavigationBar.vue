@@ -75,7 +75,7 @@
 </template>
 
 <script lang="ts" setup>
-import imgLogo from '@/assets/logo.png'
+import imgLogo from '@/assets/logo.svg'
 
 const primaryItems: Array<[string, string, string]> = [
   ['dashboard', 'Dashboard', '/dashboard'],

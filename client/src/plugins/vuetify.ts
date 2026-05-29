@@ -15,15 +15,19 @@ import { VStepperVertical, VStepperVerticalItem } from "vuetify/labs/components"
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export const vuetify = createVuetify({
+  // Prusa brand palette. Primary is the same orange that runs through
+  // the printer hardware, the cape in the logo, and the heatbed
+  // highlight on every printer tile. Accent is the lighter orange used
+  // for hover/sparkle accents in the brand sheet.
   theme: {
     defaultTheme: 'dark',
     themes: {
       dark: {
         dark: true,
         colors: {
-          primary: '#1eb6c3',
-          secondary: '#424242',
-          accent: '#82B1FF',
+          primary: '#E04E00',
+          secondary: '#3A3A3A',
+          accent: '#FF8A3D',
           error: '#FF5252',
           info: '#2196F3',
           success: '#4CAF50',
@@ -33,9 +37,9 @@ export const vuetify = createVuetify({
       light: {
         dark: false,
         colors: {
-          primary: '#1eb6c3',
-          secondary: '#424242',
-          accent: '#82B1FF',
+          primary: '#E04E00',
+          secondary: '#3A3A3A',
+          accent: '#FF8A3D',
           error: '#FF5252',
           info: '#2196F3',
           success: '#4CAF50',
