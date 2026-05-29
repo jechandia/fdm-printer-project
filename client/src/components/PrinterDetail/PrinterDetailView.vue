@@ -468,6 +468,122 @@
             </v-card>
           </v-col>
         </v-row>
+
+        <!-- Storage panel — file-storage files ready to queue. Lives in
+             Overview so the operator can build a queue without
+             tab-switching: pick a file, hit + and it's in. Folder
+             navigation keeps the panel functional on bigger libraries. -->
+        <v-row dense class="px-3 pb-3">
+          <v-col cols="12">
+            <v-card class="pdv-card" variant="tonal">
+              <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap">
+                <v-icon class="mr-2" color="primary">archive</v-icon>
+                Storage
+                <v-chip
+                  v-if="storageCount > 0"
+                  size="x-small"
+                  variant="tonal"
+                  density="comfortable"
+                  class="ml-2"
+                >
+                  {{ storageCount }}
+                </v-chip>
+                <v-spacer />
+                <v-text-field
+                  v-model="storageSearch"
+                  prepend-inner-icon="search"
+                  placeholder="Filter…"
+                  density="compact"
+                  hide-details
+                  clearable
+                  style="max-width: 220px;"
+                  class="mr-2"
+                />
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
+                  density="comfortable"
+                  title="Refresh"
+                  @click="loadStorage"
+                >
+                  <v-icon size="16">refresh</v-icon>
+                </v-btn>
+              </v-card-title>
+              <v-divider />
+              <v-card-text>
+                <!-- Breadcrumb -->
+                <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
+                  <a href="#" class="pdv-crumb" @click.prevent="navigateStorageTo(null)">root</a>
+                  <template v-for="(seg, i) in storageBreadcrumb" :key="i">
+                    <span class="mx-1">/</span>
+                    <a
+                      href="#"
+                      class="pdv-crumb"
+                      @click.prevent="navigateStorageTo(storageBreadcrumb.slice(0, i + 1).join('/'))"
+                    >{{ seg }}</a>
+                  </template>
+                </div>
+
+                <div v-if="storageLoading" class="pdv-empty">
+                  <v-progress-circular indeterminate size="20" width="2" />
+                </div>
+                <div
+                  v-else-if="filteredStorageFolders.length === 0 && filteredStorageFiles.length === 0"
+                  class="pdv-empty"
+                >
+                  <v-icon size="40" color="medium-emphasis">folder_off</v-icon>
+                  <p class="text-body-2 text-medium-emphasis mt-2">
+                    {{ storageSearch ? 'No matches.' : 'No files in storage here.' }}
+                  </p>
+                </div>
+                <v-list v-else density="comfortable" class="pdv-files">
+                  <v-list-item
+                    v-if="storagePath && !storageSearch"
+                    prepend-icon="arrow_upward"
+                    title=".."
+                    @click="navigateStorageTo(storageParentPath)"
+                  />
+                  <v-list-item
+                    v-for="folder in filteredStorageFolders"
+                    :key="`sf:${folder.path}`"
+                    prepend-icon="folder"
+                    :title="folder.name"
+                    @click="navigateStorageTo(folder.path)"
+                  />
+                  <v-list-item
+                    v-for="f in filteredStorageFiles"
+                    :key="`sff:${f.fileStorageId}`"
+                    :title="f.fileName"
+                    :subtitle="storageFileSubtitle(f)"
+                  >
+                    <template #prepend>
+                      <div class="pdv-storage-thumb">
+                        <FileThumbnailCell
+                          :file-storage-id="f.fileStorageId"
+                          :thumbnails="(f.thumbnails as any) || []"
+                        />
+                      </div>
+                    </template>
+                    <template #append>
+                      <v-btn
+                        icon
+                        variant="text"
+                        size="small"
+                        title="Add to queue"
+                        :disabled="!isOnline || addingStorageId === f.fileStorageId"
+                        :loading="addingStorageId === f.fileStorageId"
+                        @click.stop="addStorageToQueue(f)"
+                      >
+                        <v-icon size="18" color="success">add</v-icon>
+                      </v-btn>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
       </v-tabs-window-item>
 
       <!-- ========== FILES ========== -->
@@ -512,14 +628,6 @@
               New folder
             </v-btn>
             <v-spacer />
-            <v-btn
-              size="small"
-              variant="text"
-              prepend-icon="folder_open"
-              @click="openSideNavExplorer"
-            >
-              Full file browser
-            </v-btn>
           </div>
 
           <!-- Breadcrumb row -->
@@ -1047,6 +1155,8 @@ import { PrintJobService, PrintJobDto } from '@/backend/print-job.service'
 import { PrintQueueService, QueuedJob } from '@/backend/print-queue.service'
 import { PrinterMaintenanceLogService } from '@/backend/printer-maintenance-log.service'
 import { PrinterRemoteFileService } from '@/backend/printer-remote-file.service'
+import { FileStorageService } from '@/backend/file-storage.service'
+import type { FileMetadata, FolderInfo } from '@/backend/file-storage.service'
 import { PrintersService } from '@/backend/printers.service'
 import { CameraStreamService } from '@/backend/camera-stream.service'
 import type { CameraStream } from '@/models/camera-streams/camera-stream'
@@ -1058,7 +1168,6 @@ import { interpretStates } from '@/shared/printer-state.constants'
 import { useDialog } from '@/shared/dialog.composable'
 import { DialogName } from '@/components/Generic/Dialogs/dialog.constants'
 import { useSnackbar } from '@/shared/snackbar.composable'
-import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { notifyPrintJobsChanged } from '@/shared/print-jobs-invalidator.composable'
 import { derivePrinterAttention } from '@/shared/printer-attention.util'
@@ -1073,7 +1182,6 @@ const printerStateStore = usePrinterStateStore()
 const maintenanceDialog = useDialog(DialogName.PrinterMaintenanceDialog)
 const controlDialog = useDialog(DialogName.PrinterControlDialog)
 const addOrUpdateDialog = useDialog(DialogName.AddOrUpdatePrinterDialog)
-const fileExplorer = useFileExplorer()
 const snackbar = useSnackbar()
 
 type TabName = 'overview' | 'files' | 'history' | 'maintenance' | 'cameras' | 'settings'
@@ -1850,11 +1958,92 @@ async function deleteFile(path: string) {
   }
 }
 
-function openSideNavExplorer() {
-  if (!printer.value) return
-  fileExplorer.openFileExplorer(printer.value)
+// ── Storage panel (file-storage source, in Overview) ──
+// Lives in Overview so the operator can queue files without leaving
+// the at-a-glance page. Folder-based; root listing by default.
+const storagePath = ref<string | null>(null)
+const storageFolders = ref<FolderInfo[]>([])
+const storageFiles = ref<FileMetadata[]>([])
+const storageLoading = ref(false)
+const storageSearch = ref('')
+const addingStorageId = ref<string | null>(null)
+
+const storageBreadcrumb = computed(() =>
+  storagePath.value ? storagePath.value.split('/').filter(Boolean) : [],
+)
+const storageParentPath = computed<string | null>(() => {
+  if (!storagePath.value) return null
+  const parts = storagePath.value.split('/').filter(Boolean)
+  parts.pop()
+  return parts.length ? parts.join('/') : null
+})
+const storageCount = computed(() => storageFolders.value.length + storageFiles.value.length)
+
+function storageMatches(name: string): boolean {
+  if (!storageSearch.value) return true
+  return name.toLowerCase().includes(storageSearch.value.toLowerCase())
+}
+const filteredStorageFolders = computed(() =>
+  storageFolders.value.filter((f) => storageMatches(f.name)),
+)
+const filteredStorageFiles = computed(() =>
+  storageFiles.value.filter((f) => storageMatches(f.fileName)),
+)
+
+function storageFileSubtitle(f: FileMetadata): string {
+  const parts: string[] = []
+  if (typeof f.fileSize === 'number') {
+    if (f.fileSize < 1024) parts.push(`${f.fileSize} B`)
+    else if (f.fileSize < 1024 * 1024) parts.push(`${(f.fileSize / 1024).toFixed(0)} KB`)
+    else parts.push(`${(f.fileSize / 1024 / 1024).toFixed(1)} MB`)
+  }
+  const est = f.metadata?.gcodePrintTimeSeconds
+  if (typeof est === 'number' && est > 0) parts.push(`~${formatQueueDuration(est)}`)
+  const grams = f.metadata?.filamentUsedGrams
+  if (typeof grams === 'number' && grams > 0) parts.push(`${Math.round(grams)} g`)
+  return parts.join(' · ')
 }
 
+async function loadStorage() {
+  storageLoading.value = true
+  try {
+    const response = await FileStorageService.listFiles(storagePath.value, false)
+    storageFolders.value = response.folders ?? []
+    storageFiles.value = response.files ?? []
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not load storage',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+    storageFolders.value = []
+    storageFiles.value = []
+  } finally {
+    storageLoading.value = false
+  }
+}
+
+function navigateStorageTo(path: string | null) {
+  storagePath.value = path
+  void loadStorage()
+}
+
+async function addStorageToQueue(f: FileMetadata) {
+  if (!props.printerId) return
+  addingStorageId.value = f.fileStorageId
+  try {
+    await PrintQueueService.createJobFromFile(props.printerId, f.fileStorageId)
+    snackbar.openInfoMessage({ title: 'Added to queue', subtitle: f.fileName })
+    notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:queueFromStorage' })
+    await loadQueue()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not queue file',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    addingStorageId.value = null
+  }
+}
 
 // ── Cameras (filter the global list down to this printer) ──
 const cameras = ref<CameraStream[]>([])
@@ -1984,6 +2173,7 @@ watch(
     void loadQueue()
     void loadMaintenance()
     void loadCameras()
+    void loadStorage()
   },
   { immediate: true },
 )
@@ -1993,7 +2183,10 @@ watch(
 watch(
   tab,
   (next) => {
-    if (next === 'overview') void loadQueue()
+    if (next === 'overview') {
+      void loadQueue()
+      void loadStorage()
+    }
     if (next === 'maintenance') void loadMaintenance()
     if (next === 'files') void loadFiles()
     if (next === 'cameras') void loadCameras()
@@ -2331,6 +2524,27 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 
 .pdv-files-crumbs {
   font-size: 13px;
+}
+
+/* Compact 36×36 thumbnail slot used in the Storage list rows so each
+   row reads at a glance which print it is, without blowing up the
+   row height the way the queue hero card does. */
+.pdv-storage-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pdv-storage-thumb :deep(img),
+.pdv-storage-thumb :deep(.v-img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .pdv-cam {
