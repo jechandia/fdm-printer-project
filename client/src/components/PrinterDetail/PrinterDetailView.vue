@@ -566,6 +566,45 @@
                       clearable
                       style="max-width: 200px;"
                     />
+                    <!-- Sort menu. "Date" defaults to newest-first which
+                         matches what an operator usually wants — the file
+                         they just uploaded. Size / time sort largest
+                         first; name is alphabetical. -->
+                    <v-menu location="bottom end">
+                      <template #activator="{ props: ap }">
+                        <v-btn
+                          v-bind="ap"
+                          icon
+                          variant="text"
+                          size="x-small"
+                          density="comfortable"
+                          title="Sort"
+                        >
+                          <v-icon size="16">sort</v-icon>
+                        </v-btn>
+                      </template>
+                      <v-list density="compact" min-width="180">
+                        <v-list-subheader>Sort by</v-list-subheader>
+                        <v-list-item
+                          v-for="opt in storageSortOptions"
+                          :key="opt.value"
+                          :active="storageSortBy === opt.value"
+                          @click="storageSortBy = opt.value"
+                        >
+                          <template #prepend>
+                            <v-icon size="16">{{ opt.icon }}</v-icon>
+                          </template>
+                          <v-list-item-title>{{ opt.label }}</v-list-item-title>
+                          <template #append>
+                            <v-icon
+                              v-if="storageSortBy === opt.value"
+                              size="14"
+                              color="primary"
+                            >check</v-icon>
+                          </template>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
                     <v-btn
                       icon
                       variant="text"
@@ -611,49 +650,179 @@
                     {{ storageSearch ? 'No matches.' : 'No files in storage here.' }}
                   </p>
                 </div>
-                <v-list v-else density="comfortable" class="pdv-files">
-                  <v-list-item
+                <div v-else class="pdv-storage-list">
+                  <button
                     v-if="storagePath && !storageSearch"
-                    prepend-icon="arrow_upward"
-                    title=".."
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--up"
                     @click="navigateStorageTo(storageParentPath)"
-                  />
-                  <v-list-item
+                  >
+                    <v-icon size="20" class="pdv-storage-row__leadicon">arrow_upward</v-icon>
+                    <span class="pdv-storage-row__name">..</span>
+                  </button>
+
+                  <button
                     v-for="folder in filteredStorageFolders"
                     :key="`sf:${folder.path}`"
-                    prepend-icon="folder"
-                    :title="folder.name"
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--folder"
                     @click="navigateStorageTo(folder.path)"
-                  />
-                  <v-list-item
+                  >
+                    <v-icon size="22" class="pdv-storage-row__leadicon">folder</v-icon>
+                    <div class="pdv-storage-row__body">
+                      <div class="pdv-storage-row__title text-truncate" :title="folder.name">
+                        {{ folder.name }}
+                      </div>
+                      <div class="pdv-storage-row__meta">
+                        <span>Folder</span>
+                        <span v-if="folder.createdAt" class="text-medium-emphasis">
+                          · created {{ formatRelativeDate(folder.createdAt) }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="pdv-storage-row__actions" @click.stop>
+                      <v-tooltip location="top" text="Delete folder">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :loading="deletingFolderPath === folder.path"
+                            @click.stop="deleteStorageFolder(folder)"
+                          >
+                            <v-icon size="18">delete_outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </button>
+
+                  <button
                     v-for="f in filteredStorageFiles"
                     :key="`sff:${f.fileStorageId}`"
-                    :title="displayFileName(f)"
-                    :subtitle="storageFileSubtitle(f)"
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--file"
+                    @click="openStorageDetails(f)"
                   >
-                    <template #prepend>
-                      <div class="pdv-storage-thumb">
-                        <FileThumbnailCell
-                          :file-storage-id="f.fileStorageId"
-                          :thumbnails="(f.thumbnails as any) || []"
-                        />
+                    <div class="pdv-storage-row__thumb">
+                      <FileThumbnailCell
+                        :file-storage-id="f.fileStorageId"
+                        :thumbnails="(f.thumbnails as any) || []"
+                      />
+                    </div>
+                    <div class="pdv-storage-row__body">
+                      <div class="pdv-storage-row__titlerow">
+                        <span class="pdv-storage-row__title text-truncate" :title="displayFileName(f)">
+                          {{ displayFileName(f) }}
+                        </span>
+                        <v-chip
+                          v-if="f.fileFormat"
+                          size="x-small"
+                          variant="tonal"
+                          :color="storageFormatChipColor(f.fileFormat)"
+                          density="comfortable"
+                          class="pdv-storage-row__chip"
+                        >
+                          {{ f.fileFormat.toUpperCase() }}
+                        </v-chip>
                       </div>
-                    </template>
-                    <template #append>
-                      <v-btn
-                        icon
-                        variant="text"
-                        size="small"
-                        title="Add to queue"
-                        :disabled="!isOnline || addingStorageId === f.fileStorageId"
-                        :loading="addingStorageId === f.fileStorageId"
-                        @click.stop="addStorageToQueue(f)"
+                      <!-- Primary metadata line — size, time, weight. -->
+                      <div class="pdv-storage-row__meta">
+                        <span v-if="formatStorageSize(f.fileSize)">
+                          {{ formatStorageSize(f.fileSize) }}
+                        </span>
+                        <span v-if="f.metadata?.gcodePrintTimeSeconds">
+                          · <v-icon size="11" class="pdv-storage-row__metaicon">schedule</v-icon>
+                          ~{{ formatQueueDuration(f.metadata.gcodePrintTimeSeconds) }}
+                        </span>
+                        <span v-if="f.metadata?.filamentUsedGrams">
+                          · <v-icon size="11" class="pdv-storage-row__metaicon">fitness_center</v-icon>
+                          {{ Math.round(f.metadata.filamentUsedGrams) }} g
+                        </span>
+                        <span v-if="f.metadata?.filamentType" class="text-uppercase">
+                          · {{ f.metadata.filamentType }}
+                        </span>
+                      </div>
+                      <!-- Secondary metadata line — slice profile + target.
+                           Each fragment is conditional so we collapse to
+                           one line when there's nothing extra to say. -->
+                      <div
+                        v-if="
+                          f.metadata?.layerHeight ||
+                          f.metadata?.nozzleDiameterMm ||
+                          f.metadata?.totalLayers ||
+                          f.metadata?.printerModel
+                        "
+                        class="pdv-storage-row__meta pdv-storage-row__meta--dim"
                       >
-                        <v-icon size="18" color="success">add</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-list-item>
-                </v-list>
+                        <span v-if="f.metadata.layerHeight">
+                          <v-icon size="11" class="pdv-storage-row__metaicon">layers</v-icon>
+                          {{ f.metadata.layerHeight }} mm
+                        </span>
+                        <span v-if="f.metadata.nozzleDiameterMm">
+                          · <v-icon size="11" class="pdv-storage-row__metaicon">water_drop</v-icon>
+                          {{ f.metadata.nozzleDiameterMm }} mm
+                        </span>
+                        <span v-if="f.metadata.totalLayers">
+                          · {{ f.metadata.totalLayers }} layers
+                        </span>
+                        <span v-if="f.metadata.printerModel">
+                          · <v-icon size="11" class="pdv-storage-row__metaicon">precision_manufacturing</v-icon>
+                          {{ f.metadata.printerModel }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="pdv-storage-row__actions" @click.stop>
+                      <v-tooltip location="top" text="View details">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            @click.stop="openStorageDetails(f)"
+                          >
+                            <v-icon size="18">info</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip location="top" text="Add to queue">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :disabled="!isOnline || addingStorageId === f.fileStorageId"
+                            :loading="addingStorageId === f.fileStorageId"
+                            @click.stop="addStorageToQueue(f)"
+                          >
+                            <v-icon size="18" color="success">add</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip location="top" text="Delete">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :loading="deletingStorageId === f.fileStorageId"
+                            @click.stop="deleteStorageFile(f)"
+                          >
+                            <v-icon size="18">delete_outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </button>
+                </div>
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
@@ -1325,6 +1494,145 @@
           </v-btn>
           <v-spacer />
           <v-btn variant="text" @click="historyDetailOpen = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Storage file details. Opens on storage-row click and surfaces
+         every slice metadata field we have in one place — saves the
+         operator from drilling into the print-jobs view just to read
+         layer height or which printer the file was sliced for. -->
+    <v-dialog v-model="storageDetailsOpen" max-width="720" scrollable>
+      <v-card v-if="storageDetailsFile">
+        <v-card-title class="d-flex align-center" style="gap: 8px;">
+          <v-chip
+            v-if="storageDetailsFile.fileFormat"
+            size="small"
+            variant="tonal"
+            :color="storageFormatChipColor(storageDetailsFile.fileFormat)"
+            density="comfortable"
+          >
+            {{ storageDetailsFile.fileFormat.toUpperCase() }}
+          </v-chip>
+          <span class="text-truncate" :title="displayFileName(storageDetailsFile)">
+            {{ displayFileName(storageDetailsFile) }}
+          </span>
+          <v-spacer />
+          <v-btn
+            icon="close"
+            variant="text"
+            size="small"
+            @click="storageDetailsOpen = false"
+          />
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pdv-storage-details">
+          <div class="pdv-storage-details__top">
+            <!-- Full-size thumbnail. Falls back to a placeholder when
+                 the file has none (3MF without preview, legacy uploads). -->
+            <div class="pdv-storage-details__thumb">
+              <FileThumbnailCell
+                :file-storage-id="storageDetailsFile.fileStorageId"
+                :thumbnails="(storageDetailsFile.thumbnails as any) || []"
+              />
+            </div>
+            <div class="pdv-storage-details__primary">
+              <div class="text-overline text-medium-emphasis">Headline</div>
+              <div class="pdv-storage-details__stats">
+                <div v-if="formatStorageSize(storageDetailsFile.fileSize)" class="pdv-storage-details__stat">
+                  <v-icon size="14">data_usage</v-icon>
+                  <span>{{ formatStorageSize(storageDetailsFile.fileSize) }}</span>
+                </div>
+                <div v-if="storageDetailsFile.metadata?.gcodePrintTimeSeconds" class="pdv-storage-details__stat">
+                  <v-icon size="14">schedule</v-icon>
+                  <span>~{{ formatQueueDuration(storageDetailsFile.metadata.gcodePrintTimeSeconds) }}</span>
+                </div>
+                <div v-if="storageDetailsFile.metadata?.filamentUsedGrams" class="pdv-storage-details__stat">
+                  <v-icon size="14">fitness_center</v-icon>
+                  <span>{{ Math.round(storageDetailsFile.metadata.filamentUsedGrams) }} g</span>
+                </div>
+                <div v-if="storageDetailsFile.metadata?.filamentType" class="pdv-storage-details__stat">
+                  <v-icon size="14">science</v-icon>
+                  <span>{{ storageDetailsFile.metadata.filamentType }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <v-divider class="my-3" />
+
+          <div class="text-overline text-medium-emphasis">Slice profile</div>
+          <div class="pdv-storage-details__grid">
+            <div v-if="storageDetailsFile.metadata?.layerHeight" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Layer height</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.layerHeight }} mm</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.firstLayerHeight" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">First layer</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.firstLayerHeight }} mm</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.totalLayers" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Total layers</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.totalLayers }}</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.nozzleDiameterMm" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Nozzle</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.nozzleDiameterMm }} mm</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.nozzleTemperature" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Nozzle temp</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.nozzleTemperature }} °C</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.bedTemperature" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Bed temp</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.bedTemperature }} °C</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.fillDensity" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Infill</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.fillDensity }}</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.printerModel" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Sliced for</div>
+              <div class="text-body-2">{{ storageDetailsFile.metadata.printerModel }}</div>
+            </div>
+            <div v-if="storageDetailsFile.metadata?.slicerVersion" class="pdv-storage-details__cell">
+              <div class="text-caption text-medium-emphasis">Slicer</div>
+              <div class="text-body-2 text-truncate" :title="storageDetailsFile.metadata.slicerVersion">
+                {{ storageDetailsFile.metadata.slicerVersion }}
+              </div>
+            </div>
+          </div>
+
+          <v-divider class="my-3" />
+
+          <div class="text-caption text-medium-emphasis">
+            Added {{ formatRelativeDate(storageDetailsFile.createdAt) }} ·
+            ID {{ storageDetailsFile.fileStorageId.slice(0, 8) }}
+          </div>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-btn
+            variant="text"
+            color="error"
+            prepend-icon="delete_outline"
+            :loading="deletingStorageId === storageDetailsFile.fileStorageId"
+            @click="deleteStorageFile(storageDetailsFile).then(() => (storageDetailsOpen = false))"
+          >
+            Delete
+          </v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="storageDetailsOpen = false">Close</v-btn>
+          <v-btn
+            color="success"
+            variant="flat"
+            prepend-icon="add"
+            :disabled="!isOnline || addingStorageId === storageDetailsFile.fileStorageId"
+            :loading="addingStorageId === storageDetailsFile.fileStorageId"
+            @click="addStorageToQueue(storageDetailsFile).then(() => (storageDetailsOpen = false))"
+          >
+            Add to queue
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -2229,6 +2537,46 @@ const storageFiles = ref<FileMetadata[]>([])
 const storageLoading = ref(false)
 const storageSearch = ref('')
 const addingStorageId = ref<string | null>(null)
+const deletingStorageId = ref<string | null>(null)
+const deletingFolderPath = ref<string | null>(null)
+
+type StorageSortKey = 'name' | 'date' | 'size' | 'time'
+const storageSortBy = ref<StorageSortKey>('date')
+const storageSortOptions: Array<{ value: StorageSortKey; label: string; icon: string }> = [
+  { value: 'date', label: 'Newest first', icon: 'event' },
+  { value: 'name', label: 'Name (A→Z)', icon: 'sort_by_alpha' },
+  { value: 'size', label: 'Largest first', icon: 'data_usage' },
+  { value: 'time', label: 'Longest print', icon: 'schedule' },
+]
+
+// Relative date string for the folder meta line. Keeps the row compact
+// — "2h ago" instead of a full timestamp — while still letting the
+// operator tell what they uploaded today vs. last month.
+function formatRelativeDate(input: string | Date): string {
+  const d = typeof input === 'string' ? new Date(input) : input
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return ''
+  const diffMs = Date.now() - d.getTime()
+  const sec = Math.round(diffMs / 1000)
+  if (sec < 60) return 'just now'
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.round(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const day = Math.round(hr / 24)
+  if (day < 30) return `${day}d ago`
+  return d.toLocaleDateString()
+}
+
+// File-details dialog. Opens on row click and surfaces every slice
+// metadata field we have in one place (thumbnail, format, layer/nozzle
+// profile, slicer target, totals). The list row stays scannable; the
+// dialog is the "drill in" affordance.
+const storageDetailsOpen = ref(false)
+const storageDetailsFile = ref<FileMetadata | null>(null)
+function openStorageDetails(f: FileMetadata) {
+  storageDetailsFile.value = f
+  storageDetailsOpen.value = true
+}
 
 const storageBreadcrumb = computed(() =>
   storagePath.value ? storagePath.value.split('/').filter(Boolean) : [],
@@ -2245,28 +2593,119 @@ function storageMatches(name: string): boolean {
   if (!storageSearch.value) return true
   return name.toLowerCase().includes(storageSearch.value.toLowerCase())
 }
-const filteredStorageFolders = computed(() =>
-  storageFolders.value.filter((f) => storageMatches(f.name)),
-)
-const filteredStorageFiles = computed(() =>
+const filteredStorageFolders = computed(() => {
+  const filtered = storageFolders.value.filter((f) => storageMatches(f.name))
+  if (storageSortBy.value === 'date') {
+    return [...filtered].sort((a, b) => {
+      const da = new Date(a.createdAt as any).getTime()
+      const db = new Date(b.createdAt as any).getTime()
+      return db - da
+    })
+  }
+  // Folders only sort by name or date — size/time aren't meaningful
+  // without a recursive scan, so we collapse those modes to alphabetical.
+  return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+})
+const filteredStorageFiles = computed(() => {
   // Match against the friendly display name (what the row shows) so typing
   // a slice prefix narrows the list as expected. `fileName` is the UUID
   // stem for PrusaHero-uploaded files and would never match human input.
-  storageFiles.value.filter((f) => storageMatches(displayFileName(f))),
-)
-
-function storageFileSubtitle(f: FileMetadata): string {
-  const parts: string[] = []
-  if (typeof f.fileSize === 'number') {
-    if (f.fileSize < 1024) parts.push(`${f.fileSize} B`)
-    else if (f.fileSize < 1024 * 1024) parts.push(`${(f.fileSize / 1024).toFixed(0)} KB`)
-    else parts.push(`${(f.fileSize / 1024 / 1024).toFixed(1)} MB`)
+  const filtered = storageFiles.value.filter((f) => storageMatches(displayFileName(f)))
+  const sorted = [...filtered]
+  switch (storageSortBy.value) {
+    case 'name':
+      sorted.sort((a, b) => displayFileName(a).localeCompare(displayFileName(b)))
+      break
+    case 'size':
+      sorted.sort((a, b) => (b.fileSize ?? 0) - (a.fileSize ?? 0))
+      break
+    case 'time':
+      sorted.sort(
+        (a, b) =>
+          (b.metadata?.gcodePrintTimeSeconds ?? 0) - (a.metadata?.gcodePrintTimeSeconds ?? 0),
+      )
+      break
+    case 'date':
+    default:
+      sorted.sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime())
   }
-  const est = f.metadata?.gcodePrintTimeSeconds
-  if (typeof est === 'number' && est > 0) parts.push(`~${formatQueueDuration(est)}`)
-  const grams = f.metadata?.filamentUsedGrams
-  if (typeof grams === 'number' && grams > 0) parts.push(`${Math.round(grams)} g`)
-  return parts.join(' · ')
+  return sorted
+})
+
+// File size in the most readable unit. Sized so KB only shows up when
+// the file actually is sub-MB — bgcode/gcode prints typically land in
+// MB range, so giving them KB precision would just be visual noise.
+function formatStorageSize(bytes: number | null | undefined): string | null {
+  if (typeof bytes !== 'number') return null
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+// File-format chip colors keyed to the file's printer-side meaning:
+//   .bgcode → primary  (the canonical Buddy print format)
+//   .gcode  → info     (legacy Marlin / cross-compatible source)
+//   .3mf    → warning  (slicer container, can't be printed directly)
+function storageFormatChipColor(fmt?: string | null): string {
+  switch ((fmt ?? '').toLowerCase()) {
+    case 'bgcode':
+      return 'primary'
+    case 'gcode':
+      return 'info'
+    case '3mf':
+      return 'warning'
+    default:
+      return 'grey'
+  }
+}
+
+async function deleteStorageFile(f: FileMetadata) {
+  const label = displayFileName(f)
+  const ok = await confirmDialog({
+    title: 'Delete file?',
+    message: label,
+    hint: 'The file and its thumbnails are removed from storage.',
+    confirmText: 'Delete',
+    severity: 'danger',
+  })
+  if (!ok) return
+  deletingStorageId.value = f.fileStorageId
+  try {
+    await FileStorageService.deleteFile(f.fileStorageId)
+    snackbar.openInfoMessage({ title: 'File deleted', subtitle: label })
+    await loadStorage()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not delete',
+      subtitle: apiErrorMessage(e),
+    })
+  } finally {
+    deletingStorageId.value = null
+  }
+}
+
+async function deleteStorageFolder(folder: FolderInfo) {
+  const ok = await confirmDialog({
+    title: 'Delete folder?',
+    message: folder.name,
+    hint: 'Files inside the folder will be moved to the parent.',
+    confirmText: 'Delete folder',
+    severity: 'danger',
+  })
+  if (!ok) return
+  deletingFolderPath.value = folder.path
+  try {
+    await FileStorageService.deleteFolder(folder.path, { cascade: true })
+    snackbar.openInfoMessage({ title: 'Folder deleted', subtitle: folder.name })
+    await loadStorage()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not delete folder',
+      subtitle: apiErrorMessage(e),
+    })
+  } finally {
+    deletingFolderPath.value = null
+  }
 }
 
 async function loadStorage() {
@@ -3156,6 +3595,200 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* ─── Storage list (rich row layout) ─────────────────────────── */
+
+/* Custom rows replace v-list-item so we can wrap two metadata lines
+   under the title, host a chip inline, and reveal the action group on
+   hover without fighting Vuetify's internal slot structure. */
+.pdv-storage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 4px;
+  background: transparent;
+}
+
+.pdv-storage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background-color 0.12s ease, transform 0.12s ease;
+}
+
+.pdv-storage-row:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.pdv-storage-row:focus-visible {
+  outline: 1px solid rgba(var(--v-theme-primary), 0.5);
+  outline-offset: -1px;
+}
+
+.pdv-storage-row--up,
+.pdv-storage-row--folder {
+  /* Folders & ".." rows are shorter — only need the name line. */
+  min-height: 38px;
+}
+
+.pdv-storage-row__leadicon {
+  flex-shrink: 0;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+/* Larger 44×44 thumbnail in the list row gives the operator the same
+   visual hook as the queue hero. Reads better than the older 36×36 at
+   the cost of one more row's worth of vertical space. */
+.pdv-storage-row__thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pdv-storage-row__thumb :deep(img),
+.pdv-storage-row__thumb :deep(.v-img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pdv-storage-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-storage-row__titlerow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pdv-storage-row__title {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-storage-row__name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pdv-storage-row__chip {
+  flex-shrink: 0;
+}
+
+.pdv-storage-row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 2px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  margin-top: 2px;
+}
+.pdv-storage-row__meta--dim {
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+.pdv-storage-row__metaicon {
+  margin-right: 1px;
+  vertical-align: -1px;
+}
+
+/* Action cluster on the right. Stays visible on touch (no hover) but
+   fades up to full opacity on pointer hover so the row feels less
+   cluttered when the operator is just scanning. */
+.pdv-storage-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: opacity 0.12s ease;
+}
+.pdv-storage-row:hover .pdv-storage-row__actions {
+  opacity: 1;
+}
+
+/* ─── Storage file details dialog ────────────────────────────── */
+
+.pdv-storage-details {
+  padding-top: 12px;
+}
+
+.pdv-storage-details__top {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.pdv-storage-details__thumb {
+  flex-shrink: 0;
+  width: 160px;
+  height: 160px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pdv-storage-details__thumb :deep(img),
+.pdv-storage-details__thumb :deep(.v-img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pdv-storage-details__primary {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-storage-details__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 6px;
+}
+.pdv-storage-details__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Two-column metadata grid so the slice profile reads as a spec sheet
+   instead of a paragraph. Cells collapse to one column on narrow
+   viewports. */
+.pdv-storage-details__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px 16px;
+  margin-top: 4px;
+}
+.pdv-storage-details__cell {
+  min-width: 0;
 }
 
 .pdv-cam {
