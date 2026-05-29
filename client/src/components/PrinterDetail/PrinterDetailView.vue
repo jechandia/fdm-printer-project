@@ -1033,6 +1033,23 @@
                         <span>Folder</span>
                       </div>
                     </div>
+                    <div class="pdv-storage-row__actions" @click.stop>
+                      <v-tooltip location="top" text="Delete folder">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :loading="deletingUsbPath === d.path"
+                            @click.stop="deleteUsbEntry(d.path, true)"
+                          >
+                            <v-icon size="18">delete_outline</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
                   </button>
 
                   <button
@@ -1096,6 +1113,21 @@
                             @click.stop="addUsbToQueue(f)"
                           >
                             <v-icon size="18" color="success">add_to_queue</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip location="top" text="Delete">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :loading="deletingUsbPath === f.path"
+                            @click.stop="deleteUsbEntry(f.path, false)"
+                          >
+                            <v-icon size="18">delete_outline</v-icon>
                           </v-btn>
                         </template>
                       </v-tooltip>
@@ -2642,6 +2674,46 @@ async function addUsbToQueue(f: FileDto) {
     })
   } finally {
     addingToQueuePath.value = null
+  }
+}
+
+// Per-row deletion state for the Internal Storage browser. PrusaLink's
+// delete endpoint handles both files and folders against the same
+// /printer-files/:id route, so we share one helper and key the loading
+// indicator by path.
+const deletingUsbPath = ref<string | null>(null)
+async function deleteUsbEntry(path: string, isFolder: boolean) {
+  if (!props.printerId) return
+  // Resolve the friendly label the same way the row's title does so
+  // the confirm dialog shows what the operator clicked on, not the
+  // raw printer-side path.
+  const known = filesData.value?.files.find((f) => f.path === path)
+  const label = known ? usbDisplayLabel(known) : leafName(path)
+  const ok = await confirmDialog({
+    title: isFolder ? 'Delete folder?' : 'Delete file?',
+    message: label,
+    hint: isFolder
+      ? 'The folder and everything inside it is removed from the printer.'
+      : 'The file is removed from the printer storage.',
+    confirmText: 'Delete',
+    severity: 'danger',
+  })
+  if (!ok) return
+  deletingUsbPath.value = path
+  try {
+    await PrinterRemoteFileService.deleteFileOrFolder(props.printerId, path)
+    snackbar.openInfoMessage({
+      title: isFolder ? 'Folder deleted' : 'File deleted',
+      subtitle: label,
+    })
+    await loadFiles()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not delete',
+      subtitle: apiErrorMessage(e),
+    })
+  } finally {
+    deletingUsbPath.value = null
   }
 }
 
