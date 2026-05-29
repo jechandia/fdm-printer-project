@@ -606,14 +606,30 @@ const currentProgress = computed(() => {
 // Queue dispatch transfer progress for this printer. Populated server-side
 // while a STARTING-status job's PUT is streaming to PrusaLink — the
 // printer itself reports IDLE during the upload, so `currentProgress`
-// (which reads the firmware's print progress) is unset. We display this
-// instead so the user knows the upload is alive and how close to done.
+// (which reads the firmware's print progress) is unset.
+//
+// Two sources of "transfer %" are available and they routinely disagree:
+//   - axios's progress (`queueUploadsByPrinterId`) — bytes our server has
+//     handed off to the kernel send buffer. Races ahead because TCP
+//     happily accepts bytes faster than PrusaLink can flush them to USB.
+//   - PrusaLink's own `status.transfer.progress` — bytes the printer has
+//     written to its storage. The truth from the user's POV, but only
+//     starts appearing once the printer has acknowledged some data.
+// Prefer the firmware number when present; fall back to axios so the
+// initial moments (handshake, first packet) still show a non-zero bar.
 const uploadProgress = computed<{ percent: number; fileName: string } | null>(() => {
   if (!printerId.value) return null
   const entry = printerStateStore.queueUploadsByPrinterId[printerId.value]
   if (!entry) return null
-  const pct = entry.progress === null ? 0 : Math.round(entry.progress * 100)
-  return { percent: pct, fileName: entry.fileName }
+  const firmwareTransfer = (printerStateStore.printerEventsById[printerId.value]?.current?.payload as any)
+    ?.transfer
+  const firmwarePct =
+    firmwareTransfer && typeof firmwareTransfer.progress === "number" && firmwareTransfer.progress >= 0
+      ? Math.round(firmwareTransfer.progress * 100)
+      : null
+  const axiosPct = entry.progress === null ? 0 : Math.round(entry.progress * 100)
+  const percent = firmwarePct !== null ? firmwarePct : axiosPct
+  return { percent, fileName: entry.fileName }
 })
 
 const timeRemainingSeconds = computed<number | null>(() => {
