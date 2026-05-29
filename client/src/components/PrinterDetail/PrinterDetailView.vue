@@ -1636,15 +1636,6 @@
         </v-card-text>
         <v-divider />
         <v-card-actions>
-          <v-btn
-            variant="text"
-            color="error"
-            prepend-icon="delete_outline"
-            :loading="deletingStorageId === storageDetailsFile.fileStorageId"
-            @click="deleteStorageFile(storageDetailsFile).then(() => (storageDetailsOpen = false))"
-          >
-            Delete
-          </v-btn>
           <v-spacer />
           <v-btn variant="text" @click="storageDetailsOpen = false">Close</v-btn>
           <v-btn
@@ -2562,7 +2553,6 @@ const storageFiles = ref<FileMetadata[]>([])
 const storageLoading = ref(false)
 const storageSearch = ref('')
 const addingStorageId = ref<string | null>(null)
-const deletingStorageId = ref<string | null>(null)
 const deletingFolderPath = ref<string | null>(null)
 
 type StorageSortKey = 'name' | 'date' | 'size' | 'time'
@@ -2725,31 +2715,6 @@ function storageFormatChipColor(fmt?: string | null): string {
       return 'warning'
     default:
       return 'grey'
-  }
-}
-
-async function deleteStorageFile(f: FileMetadata) {
-  const label = displayFileName(f)
-  const ok = await confirmDialog({
-    title: 'Delete file?',
-    message: label,
-    hint: 'The file and its thumbnails are removed from storage.',
-    confirmText: 'Delete',
-    severity: 'danger',
-  })
-  if (!ok) return
-  deletingStorageId.value = f.fileStorageId
-  try {
-    await FileStorageService.deleteFile(f.fileStorageId)
-    snackbar.openInfoMessage({ title: 'File deleted', subtitle: label })
-    await loadStorage()
-  } catch (e: any) {
-    snackbar.openErrorMessage({
-      title: 'Could not delete',
-      subtitle: apiErrorMessage(e),
-    })
-  } finally {
-    deletingStorageId.value = null
   }
 }
 
