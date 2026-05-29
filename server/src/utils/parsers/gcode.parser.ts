@@ -291,18 +291,26 @@ export class GCodeParser {
   private parseTime(value: string | undefined): number | null {
     if (!value) return null;
 
-    // Try parsing as duration string FIRST (e.g., "1h 31m 17s" or "19m 58s")
-    const match = value.match(/(?:(\d+)h)?(?:\s*(\d+)m)?(?:\s*(\d+)s)?/);
-    if (match && (match[1] || match[2] || match[3])) {
-      const hours = parseInt(match[1] || "0");
-      const minutes = parseInt(match[2] || "0");
-      const secs = parseInt(match[3] || "0");
-      return hours * 3600 + minutes * 60 + secs;
+    // Try parsing as duration string FIRST (e.g., "1d 10h 27m 13s",
+    // "1h 31m 17s", or "19m 58s"). PrusaSlicer adds `Xd` once a print
+    // crosses 24 hours; the old regex stopped at `h` and fell through
+    // to parseFloat, which then read just the leading "1" from "1d …"
+    // and returned 1 second instead of a 30+ hour estimate.
+    const days = value.match(/(\d+)\s*d/i);
+    const hours = value.match(/(\d+)\s*h/i);
+    const minutes = value.match(/(\d+)\s*m(?!s)/i);
+    const seconds = value.match(/(\d+)\s*s/i);
+    if (days || hours || minutes || seconds) {
+      const d = parseInt(days?.[1] ?? "0");
+      const h = parseInt(hours?.[1] ?? "0");
+      const m = parseInt(minutes?.[1] ?? "0");
+      const s = parseInt(seconds?.[1] ?? "0");
+      return d * 86400 + h * 3600 + m * 60 + s;
     }
 
     // Fallback to parsing as plain seconds
-    const seconds = parseFloat(value);
-    if (!isNaN(seconds)) return seconds;
+    const plain = parseFloat(value);
+    if (!isNaN(plain)) return plain;
 
     return null;
   }
