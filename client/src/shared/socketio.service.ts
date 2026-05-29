@@ -279,7 +279,9 @@ export class SocketIoService {
     // POST /process with 202 so the user has no way of knowing whether the
     // upload eventually succeeded without this event.
     appSocketIO.on(IO_MESSAGES.QueueEvent, (data: QueueEventPayload) => {
-      const printerLabel = data.printerId ? `printer ${data.printerId}` : "printer";
+      const printerLabel = data.printerId
+        ? this.printerStore.printer(data.printerId)?.name ?? `printer ${data.printerId}`
+        : "printer";
       if (data.kind === "failed") {
         if (data.cancelled) {
           // Cancel-by-user is informational, not an error. Match the
@@ -289,9 +291,16 @@ export class SocketIoService {
             warning: true,
           });
         } else {
+          // `data.reason` is the persisted `statusReason` — usually
+          // "Print submission failed: <friendly>". The toast title
+          // already says "failed", so strip the redundant prefix and
+          // any leaked JSON noise before showing.
+          const cleanReason = (data.reason ?? "")
+            .replace(/^Print submission failed:\s*/i, "")
+            .trim();
           this.snackbar.openErrorMessage({
             title: `Dispatch to ${printerLabel} failed`,
-            subtitle: data.reason ?? "Unknown error",
+            subtitle: cleanReason || "Unknown error",
           });
         }
       } else if (data.kind === "submitted") {

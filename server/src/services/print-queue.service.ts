@@ -573,7 +573,7 @@ export class PrintQueueService implements IPrintQueueService {
       if (wasCancelled) {
         job.statusReason = "Cancelled by user — upload aborted mid-transfer.";
       } else {
-        job.statusReason = `Print submission failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+        job.statusReason = `Print submission failed: ${this.extractFriendlyError(error)}`;
       }
       await this.printJobRepository.save(job);
       if (wasCancelled) {
@@ -594,6 +594,49 @@ export class PrintQueueService implements IPrintQueueService {
       // creates a fresh aborter.
       this.dispatchAbortersByPrinterId.delete(printerId);
     }
+  }
+
+  /**
+   * Pull a human-readable single sentence out of whatever the upload
+   * pipeline threw. `ExternalServiceError` stringifies its full response
+   * object — including stack — into `.message`, so naively setting
+   * `statusReason = error.message` puts a wall of JSON in the operator's
+   * toast (we saw this with the 507 today). Prefer the friendly `error`
+   * field that PrusaLinkApi already curates for each HTTP status, then
+   * fall back to `axios.response.data.error/title/message`, then to the
+   * plain `error.message`. Final fallback strips JSON-ish residue so
+   * even a worst-case error stays one short line.
+   */
+  private extractFriendlyError(error: unknown): string {
+    if (!error) return "Unknown error";
+    if (typeof error === "string") return error;
+    const e = error as {
+      error?: { error?: unknown } | string;
+      message?: string;
+      response?: { data?: { error?: string; title?: string; message?: string } };
+    };
+
+    // ExternalServiceError wraps the curated friendly string at `.error.error`.
+    const curated = (e.error as { error?: unknown })?.error;
+    if (typeof curated === "string" && curated.trim()) return curated.trim();
+
+    // Raw axios path — the printer's response body sometimes carries a
+    // ready-to-show string under `error` / `title` / `message`.
+    const resp = e.response?.data;
+    if (resp) {
+      if (typeof resp.error === "string" && resp.error.trim()) return resp.error.trim();
+      if (typeof resp.title === "string" && resp.title.trim()) return resp.title.trim();
+      if (typeof resp.message === "string" && resp.message.trim()) return resp.message.trim();
+    }
+
+    // Last-resort: extract the first line of `.message` and reject things
+    // that look like JSON dumps (start with `{`) so even an unexpected
+    // shape doesn't paste a stack into the toast.
+    const msg = (e.message ?? "").trim();
+    if (!msg) return "Unknown error";
+    if (msg.startsWith("{")) return "Print submission failed (see server logs for details).";
+    const firstLine = msg.split(/\r?\n/)[0]!.trim();
+    return firstLine || "Unknown error";
   }
 
   /**
