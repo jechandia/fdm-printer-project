@@ -502,16 +502,9 @@
           Move {{ selectedCount }} item(s)
         </v-card-title>
         <v-card-text>
-          <v-autocomplete
-            v-model="bulkMoveDialog.targetPath"
-            :items="folderPickerItems"
-            label="Destination folder"
-            variant="outlined"
-            density="compact"
-            prepend-inner-icon="folder"
-            hide-details
-            :error-messages="bulkMoveDialog.error ? [bulkMoveDialog.error] : []"
-          />
+          <div class="text-caption text-medium-emphasis mb-2">Destination folder</div>
+          <FolderPicker v-model="bulkMoveDialog.targetPath" :folders="allFolderPaths" />
+          <div v-if="bulkMoveDialog.error" class="text-caption text-error mt-2">{{ bulkMoveDialog.error }}</div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -546,16 +539,9 @@
             <v-icon size="small" class="mr-1">description</v-icon>
             {{ displayFileName(moveDialog.file) }}
           </div>
-          <v-autocomplete
-            v-model="moveDialog.targetPath"
-            :items="folderPickerItems"
-            label="Destination folder"
-            variant="outlined"
-            density="compact"
-            prepend-inner-icon="folder"
-            hide-details
-            :error-messages="moveDialog.error ? [moveDialog.error] : []"
-          />
+          <div class="text-caption text-medium-emphasis mb-2">Destination folder</div>
+          <FolderPicker v-model="moveDialog.targetPath" :folders="allFolderPaths" />
+          <div v-if="moveDialog.error" class="text-caption text-error mt-2">{{ moveDialog.error }}</div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -591,6 +577,7 @@ import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { formatRelativeTime, formatDuration } from '@/utils/date-time.utils'
 import FileDetailsDialog from './FileDetailsDialog.vue'
 import QueueFileDialog from './QueueFileDialog.vue'
+import FolderPicker from './FolderPicker.vue'
 
 const snackbar = useSnackbar()
 const printerStore = usePrinterStore()
@@ -793,14 +780,6 @@ const folderBreadcrumb = computed(() => {
     acc.push({ path: prefix, name: seg })
   }
   return acc
-})
-
-const folderPickerItems = computed(() => {
-  const items = [{ title: 'Root', value: '' }]
-  for (const path of allFolderPaths.value) {
-    items.push({ title: path, value: path })
-  }
-  return items
 })
 
 async function navigateToFolder(path: string | null) {
