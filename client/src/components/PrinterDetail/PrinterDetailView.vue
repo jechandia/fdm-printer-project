@@ -47,6 +47,78 @@
             </span>
           </div>
         </div>
+
+        <!-- Secondary actions — always visible at the top right. USB
+             toggle / enable / refresh / maintenance live here instead
+             of in a separate toolbar strip so the hero owns every
+             affordance for the printer. Primary actions (Pause/Cancel/
+             Jog) drop in beside the progress row when there's an
+             active print. -->
+        <div class="pdv-hero-header__actions">
+          <v-tooltip location="bottom" :text="isOperational ? 'Disconnect' : 'Connect'">
+            <template #activator="{ props: tip }">
+              <v-btn
+                v-bind="tip"
+                :disabled="!printer.enabled || !isOnline"
+                :color="isOperational ? 'warning' : 'success'"
+                variant="text"
+                size="small"
+                density="comfortable"
+                icon
+                @click="togglePrinterConnection"
+              >
+                <v-icon size="20">{{ isOperational ? 'usb_off' : 'usb' }}</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip location="bottom" :text="printer.enabled ? 'Disable' : 'Enable'">
+            <template #activator="{ props: tip }">
+              <v-btn
+                v-bind="tip"
+                :color="printer.enabled ? undefined : 'success'"
+                variant="text"
+                size="small"
+                density="comfortable"
+                icon
+                @click="toggleEnabled"
+              >
+                <v-icon size="20">{{ printer.enabled ? 'toggle_on' : 'toggle_off' }}</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip location="bottom" text="Refresh connection">
+            <template #activator="{ props: tip }">
+              <v-btn
+                v-bind="tip"
+                variant="text"
+                size="small"
+                density="comfortable"
+                icon
+                @click="refreshSocketState"
+              >
+                <v-icon size="20">refresh</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+
+          <v-tooltip location="bottom" :text="isUnderMaintenance ? 'End maintenance' : 'Start maintenance'">
+            <template #activator="{ props: tip }">
+              <v-btn
+                v-bind="tip"
+                :color="isUnderMaintenance ? 'warning' : undefined"
+                variant="text"
+                size="small"
+                density="comfortable"
+                icon
+                @click="toggleMaintenance"
+              >
+                <v-icon size="20">{{ isUnderMaintenance ? 'build_circle' : 'build' }}</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+        </div>
       </div>
 
       <!-- "Now printing" block — only when there's an active print.
@@ -114,123 +186,50 @@
             </span>
           </div>
         </div>
+
+        <!-- Primary print actions — pinned to the right of the now-row
+             so the most-used controls during a print sit next to the
+             progress they're acting on. Pause/Resume swaps in place;
+             Cancel is destructive (red) and gets a confirm dialog;
+             Jog opens the existing transient control dialog. -->
+        <div class="pdv-hero-header__primary">
+          <v-btn
+            v-if="isPrinting || isPaused"
+            :disabled="!isOnline"
+            :color="isPaused ? 'success' : 'warning'"
+            size="small"
+            variant="flat"
+            :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
+            :loading="pauseToggleBusy"
+            block
+            @click="isPaused ? clickResumePrint() : clickPausePrint()"
+          >
+            {{ isPaused ? 'Resume' : 'Pause' }}
+          </v-btn>
+          <v-btn
+            v-if="isStoppable"
+            color="error"
+            size="small"
+            variant="flat"
+            prepend-icon="stop"
+            :loading="stopBusy"
+            block
+            @click="clickStopPrint"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            :disabled="!isOnline"
+            variant="tonal"
+            size="small"
+            prepend-icon="open_with"
+            block
+            @click="openControlDialog"
+          >
+            Jog
+          </v-btn>
+        </div>
       </div>
-    </div>
-
-    <!-- Action toolbar — same affordances the FileExplorerSideNav
-         exposes (Pause/Cancel during a print, then icon-only USB
-         toggle / enable toggle / refresh / maintenance / settings),
-         so the per-printer page is a strict superset of the dialog. -->
-    <div class="pdv-toolbar">
-      <template v-if="isPrinting || isPaused">
-        <v-btn
-          :disabled="!isOnline"
-          :color="isPaused ? 'success' : 'warning'"
-          size="small"
-          variant="flat"
-          :prepend-icon="isPaused ? 'play_arrow' : 'pause'"
-          :loading="pauseToggleBusy"
-          @click="isPaused ? clickResumePrint() : clickPausePrint()"
-        >
-          {{ isPaused ? 'Resume' : 'Pause' }}
-        </v-btn>
-      </template>
-      <v-btn
-        v-if="isStoppable"
-        color="error"
-        size="small"
-        variant="flat"
-        prepend-icon="stop"
-        :loading="stopBusy"
-        @click="clickStopPrint"
-      >
-        Cancel
-      </v-btn>
-
-      <v-divider
-        v-if="isPrinting || isPaused || isStoppable"
-        vertical
-        class="mx-1"
-      />
-
-      <v-btn
-        :disabled="!printer.enabled || !isOnline"
-        :color="isOperational ? 'warning' : 'success'"
-        variant="text"
-        size="small"
-        density="comfortable"
-        icon
-        @click="togglePrinterConnection"
-      >
-        <v-icon>{{ isOperational ? 'usb_off' : 'usb' }}</v-icon>
-        <v-tooltip activator="parent" location="bottom">
-          {{ isOperational ? 'Disconnect' : 'Connect' }}
-        </v-tooltip>
-      </v-btn>
-
-      <v-btn
-        :color="printer.enabled ? 'default' : 'success'"
-        variant="text"
-        size="small"
-        density="comfortable"
-        icon
-        @click="toggleEnabled"
-      >
-        <v-icon>{{ printer.enabled ? 'toggle_on' : 'toggle_off' }}</v-icon>
-        <v-tooltip activator="parent" location="bottom">
-          {{ printer.enabled ? 'Disable' : 'Enable' }}
-        </v-tooltip>
-      </v-btn>
-
-      <v-btn
-        variant="text"
-        size="small"
-        density="comfortable"
-        icon
-        @click="refreshSocketState"
-      >
-        <v-icon>refresh</v-icon>
-        <v-tooltip activator="parent" location="bottom">Refresh connection</v-tooltip>
-      </v-btn>
-
-      <v-btn
-        :color="isUnderMaintenance ? 'warning' : undefined"
-        variant="text"
-        size="small"
-        density="comfortable"
-        icon
-        @click="toggleMaintenance"
-      >
-        <v-icon>{{ isUnderMaintenance ? 'build_circle' : 'build' }}</v-icon>
-        <v-tooltip activator="parent" location="bottom">
-          {{ isUnderMaintenance ? 'End maintenance' : 'Start maintenance' }}
-        </v-tooltip>
-      </v-btn>
-
-      <v-btn
-        :disabled="!isOnline"
-        variant="text"
-        size="small"
-        density="comfortable"
-        icon
-        @click="openControlDialog"
-      >
-        <v-icon>open_with</v-icon>
-        <v-tooltip activator="parent" location="bottom">Jog &amp; home</v-tooltip>
-      </v-btn>
-
-      <v-spacer />
-
-      <v-btn
-        v-if="!printer.enabled && printer.disabledReason"
-        variant="tonal"
-        size="small"
-        color="warning"
-        prepend-icon="construction"
-        disabled
-      >
-        {{ printer.disabledReason }}
-      </v-btn>
     </div>
 
     <!-- Attention banner — same priority order the side nav uses. -->
@@ -2206,6 +2205,36 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   gap: 12px;
 }
 
+/* Secondary actions: USB / enable / refresh / maintenance. Lives at
+   the top-right of the hero, always visible (not gated on isPrinting).
+   Subtle border separates it from the identity block when the buttons
+   are sitting near temperature numbers later. */
+.pdv-hero-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Primary print actions inside the now-row. Vertical stack so the
+   buttons sit aligned with the thumbnail's edge regardless of how
+   tall the slice info gets. Each button uses `block` so they share
+   width — easier to scan than mismatched widths. */
+.pdv-hero-header__primary {
+  flex: 0 0 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+}
+.pdv-hero-header__primary :deep(.v-btn) {
+  width: 100%;
+}
+
 .pdv-hero-header__identity {
   flex: 1 1 auto;
   min-width: 0;
@@ -2358,16 +2387,6 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 
 .pdv-tabs {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.pdv-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 16px;
-  background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
