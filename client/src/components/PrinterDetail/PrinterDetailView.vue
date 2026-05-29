@@ -928,12 +928,19 @@ async function saveSettings() {
   }
 }
 
-// Initial populate + external sync. The form ref starts with empty
-// strings (declared above `printer` for TDZ reasons), so the first run
-// of this watcher unconditionally seeds it with the real printer data.
-// After that we only re-sync when the form isn't dirty so a socket
-// update can't trample what the user is typing.
+// Initial-seed flag is declared up here so the watcher below (which lives
+// after `printer` is declared, to dodge TDZ from `immediate: true`) can
+// flip it on first fire.
 let settingsFormSeeded = false
+
+// ── Printer + live state ──
+const printer = computed(() => printerStore.printer(props.printerId))
+const printerEvents = computed(() => printerStateStore.printerEventsById[props.printerId])
+const socketState = computed(() => printerStateStore.socketStatesById[props.printerId])
+
+// Settings form seed watcher — has to live AFTER `printer` is declared
+// because `{ immediate: true }` fires the source function during setup,
+// and that source reads `printer.value`. Declaring it earlier hit TDZ.
 watch(
   () => printer.value,
   (next) => {
@@ -947,11 +954,6 @@ watch(
   },
   { deep: true, immediate: true },
 )
-
-// ── Printer + live state ──
-const printer = computed(() => printerStore.printer(props.printerId))
-const printerEvents = computed(() => printerStateStore.printerEventsById[props.printerId])
-const socketState = computed(() => printerStateStore.socketStatesById[props.printerId])
 const printerState = computed(() => {
   if (!printer.value) return null
   return interpretStates(printer.value, socketState.value, printerEvents.value)
