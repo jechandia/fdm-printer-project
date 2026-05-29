@@ -45,7 +45,6 @@ declare module 'vue' {
     GridSettingsMenu: typeof import('./components/PrinterGrid/GridSettingsMenu.vue')['default']
     GridSizeControl: typeof import('./components/PrinterGrid/GridSizeControl.vue')['default']
     HelpBanner: typeof import('./components/Generic/HelpBanner.vue')['default']
-    HelpOverlay: typeof import('./components/HelpOverlay/HelpOverlay.vue')['default']
     HomeToolbar: typeof import('./components/PrinterGrid/HomeToolbar.vue')['default']
     JsonViewerDialog: typeof import('./components/Generic/Dialogs/JsonViewerDialog.vue')['default']
     LoginForm: typeof import('./components/Login/LoginForm.vue')['default']
