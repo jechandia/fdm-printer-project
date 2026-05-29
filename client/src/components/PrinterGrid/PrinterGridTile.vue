@@ -201,7 +201,7 @@
                     >
                       construction
                     </v-icon>
-                    {{ printer?.disabledReason ? 'MAINTENANCE' : (printerState?.text?.toUpperCase() || '—') }}
+                    {{ printer?.disabledReason ? 'Maintenance' : (printerState?.text || '—') }}<template v-if="lastSeenAgoFormatted"> · {{ lastSeenAgoFormatted }}</template>
                   </v-chip>
                 </template>
               </v-tooltip>
@@ -216,9 +216,9 @@
               <span
                 v-if="timeRemainingFormatted"
                 class="pg-tile__eta"
-                title="Estimated time remaining"
+                :title="etaClockFormatted ? `Done at ${etaClockFormatted}` : 'Estimated time remaining'"
               >
-                · {{ timeRemainingFormatted }}
+                · {{ timeRemainingFormatted }}<template v-if="etaClockFormatted"> · {{ etaClockFormatted }}</template>
               </span>
 
               <v-spacer />
@@ -336,7 +336,9 @@ import { usePrinterStateStore } from '@/store/printer-state.store'
 import { PrinterDto } from '@/models/printers/printer.model'
 import { useSnackbar } from '@/shared/snackbar.composable'
 import { useDialog } from '@/shared/dialog.composable'
-import { usePrinterTileThumbnailQuery } from '@/queries/printer-tile-thumbnail.query'
+import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/queries/printer-tile-thumbnail.query'
+import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
@@ -374,6 +376,16 @@ const tileIconThumbnailSize = computed(() =>
 )
 
 const { data: thumbnail } = usePrinterTileThumbnailQuery(printerId)
+
+// Refetch the per-printer thumbnail when the server signals it changed
+// (a new print just started). Without this, the TanStack cache stays
+// pinned to the previous print's preview until window focus refresh.
+const queryClient = useQueryClient()
+useOnPrinterThumbnailChanged((event) => {
+  if (event.printerId === printerId.value) {
+    queryClient.invalidateQueries({ queryKey: [printerTileThumbnailQueryKey, printerId] })
+  }
+})
 
 const isOnline = computed(() =>
   printerId.value ? printerStateStore.isApiResponding(printerId.value) : false
@@ -509,6 +521,38 @@ const timeRemainingFormatted = computed<string | null>(() => {
   if (hours > 0) return `${ hours }h ${ minutes }m`
   if (minutes > 0) return `${ minutes }m`
   return `${ Math.floor(total) }s`
+})
+
+// Wall-clock ETA — operators reading the grid in a busy workshop find
+// "done at 16:42" more actionable than "1h 24m" abstract. When the print
+// crosses midnight, append the day-after marker so 02:15 doesn't look
+// like it's about to happen.
+const etaClockFormatted = computed<string | null>(() => {
+  const remaining = timeRemainingSeconds.value
+  if (remaining === null) return null
+  const eta = new Date(Date.now() + remaining * 1000)
+  const hh = String(eta.getHours()).padStart(2, '0')
+  const mm = String(eta.getMinutes()).padStart(2, '0')
+  const sameDay = eta.toDateString() === new Date().toDateString()
+  return sameDay ? `${hh}:${mm}` : `${hh}:${mm} +1d`
+})
+
+// "Last seen Xm ago" hint for offline/unreachable printers. The
+// store exposes the last successful poll's timestamp; if we've never
+// heard from this printer (fresh add, never online) the hint is
+// suppressed so the chip just reads "Offline".
+const lastSeenAgoFormatted = computed<string | null>(() => {
+  if (!printerId.value || isOnline.value) return null
+  const ts = printerStateStore.printerCurrentEventReceivedAtById[printerId.value]
+  if (!ts) return null
+  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 })
 
 const currentPrintingFilePath = computed(() => {

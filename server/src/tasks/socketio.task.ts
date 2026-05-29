@@ -27,6 +27,23 @@ export class SocketIoTask {
     this.eventEmitter2.on(socketIoConnectedEvent, async () => {
       await this.sendUpdate();
     });
+
+    // Bridge selected internal events to socket.io so the client can show
+    // toasts and invalidate per-printer queries reactively. These fire on
+    // discrete transitions (job dispatched, dispatch failed, thumbnail
+    // updated), so broadcasting them out-of-band is cheaper than fattening
+    // every periodic `Update` payload — and the client wouldn't notice
+    // queue state from a periodic snapshot if the user is on a different
+    // page.
+    this.eventEmitter2.on("printQueue.jobSubmitted", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.QueueEvent, { kind: "submitted", ...data }),
+    );
+    this.eventEmitter2.on("printQueue.jobSubmissionFailed", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.QueueEvent, { kind: "failed", ...data }),
+    );
+    this.eventEmitter2.on("printer.thumbnailChanged", (data) =>
+      this.socketIoGateway.send(IO_MESSAGES.PrinterThumbnailChanged, data),
+    );
   }
 
   async run() {

@@ -4,6 +4,7 @@ import { LoggerService } from "@/handlers/logger";
 import { PrintJobService } from "@/services/orm/print-job.service";
 import { FileStorageService } from "@/services/file-storage.service";
 import { FileAnalysisService } from "@/services/file-analysis.service";
+import EventEmitter2 from "eventemitter2";
 
 export interface CachedPrinterThumbnail {
   printerId: number;
@@ -25,6 +26,7 @@ export class PrinterThumbnailCache extends KeyDiffCache<CachedPrinterThumbnail> 
     private readonly printJobService: PrintJobService,
     private readonly fileStorageService: FileStorageService,
     private readonly fileAnalysisService: FileAnalysisService,
+    private readonly eventEmitter2: EventEmitter2,
   ) {
     super();
     this.logger = loggerFactory(PrinterThumbnailCache.name);
@@ -132,6 +134,9 @@ export class PrinterThumbnailCache extends KeyDiffCache<CachedPrinterThumbnail> 
       fileName,
       updatedAt: new Date(),
     });
+    // Lets the client refetch the per-printer thumbnail without waiting for
+    // window focus. Fanned out via socket.io by SocketIoTask.
+    this.eventEmitter2.emit("printer.thumbnailChanged", { printerId, jobId });
   }
 
   /**

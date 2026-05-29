@@ -12,10 +12,27 @@ import { reactive } from "vue";
 import { useEventBus } from "@vueuse/core";
 import { useDebugSocketStore } from "@/store/debug-socket.store";
 import { useOverlayStore } from "@/store/overlay.store";
+import { notifyPrinterThumbnailChanged } from "@/shared/printer-thumbnail-invalidator.composable";
 
 enum IO_MESSAGES {
   Update = "update",
   TestPrinterState = "test-printer-state",
+  // Mirrors server/src/state/socket-io.gateway.ts IO_MESSAGES. Keep these
+  // in sync; we don't have a shared types package between the two yet.
+  PrinterThumbnailChanged = "printer.thumbnailChanged",
+  QueueEvent = "printQueue.event",
+}
+
+interface QueueEventPayload {
+  kind: "submitted" | "failed";
+  printerId?: number;
+  jobId?: number;
+  reason?: string;
+}
+
+interface PrinterThumbnailChangedPayload {
+  printerId: number;
+  jobId?: number;
 }
 
 let appSocketIO: Socket | null = null;
@@ -236,6 +253,32 @@ export class SocketIoService {
     // Register test printer state handler
     appSocketIO.on(IO_MESSAGES.TestPrinterState, (data) => {
       this.testPrinterStore.saveEvent(data);
+    });
+
+    // Background-dispatch outcome → toast. We respond immediately to the
+    // POST /process with 202 so the user has no way of knowing whether the
+    // upload eventually succeeded without this event.
+    appSocketIO.on(IO_MESSAGES.QueueEvent, (data: QueueEventPayload) => {
+      const printerLabel = data.printerId ? `printer ${data.printerId}` : "printer";
+      if (data.kind === "failed") {
+        this.snackbar.openErrorMessage({
+          title: `Dispatch to ${printerLabel} failed`,
+          subtitle: data.reason ?? "Unknown error",
+        });
+      } else if (data.kind === "submitted") {
+        this.snackbar.openInfoMessage({
+          title: `Dispatched job to ${printerLabel}`,
+        });
+      }
+    });
+
+    // Thumbnail cache flipped to a new file (e.g. a new print started) —
+    // invalidate the grid tile's TanStack query via an event-bus emit so
+    // the new preview shows up without window focus / staleTime expiry.
+    appSocketIO.on(IO_MESSAGES.PrinterThumbnailChanged, (data: PrinterThumbnailChangedPayload) => {
+      if (typeof data?.printerId === "number") {
+        notifyPrinterThumbnailChanged({ printerId: data.printerId, jobId: data.jobId });
+      }
     });
   }
 }
