@@ -49,8 +49,9 @@
         <!-- Top row: name + quick actions -->
         <header class="pg-tile__header">
           <span
-            class="pg-tile__name text-truncate"
-            :title="printer.name"
+            class="pg-tile__name pg-tile__name--clickable text-truncate"
+            :title="`${printer.name} — click to view print history`"
+            @click.stop.prevent="detailOpen = true"
           >
             {{ printer.name }}
           </span>
@@ -350,6 +351,11 @@
       :remaining-seconds="timeRemainingSeconds"
       :metadata="previewMetadata"
     />
+
+    <PrinterDetailDialog
+      v-model="detailOpen"
+      :printer-id="printerId"
+    />
   </div>
 </template>
 
@@ -374,6 +380,7 @@ import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/qu
 import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
 import { useQueryClient } from '@tanstack/vue-query'
 import PrinterTilePreviewDialog from './PrinterTilePreviewDialog.vue'
+import PrinterDetailDialog from './PrinterDetailDialog.vue'
 import { useFileExplorer } from '@/shared/file-explorer.composable'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
@@ -424,6 +431,7 @@ useOnPrinterThumbnailChanged((event) => {
 })
 
 const previewOpen = ref(false)
+const detailOpen = ref(false)
 const previewMetadata = computed(() => thumbnailRecord.value?.job?.metadata ?? null)
 const previewEstimatedSeconds = computed(() => thumbnailRecord.value?.job?.estimatedSeconds ?? null)
 const previewFileName = computed(
@@ -888,6 +896,16 @@ const selectPrinterPosition = async () => {
   font-weight: 600;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.pg-tile__name--clickable {
+  cursor: pointer;
+}
+
+.pg-tile__name--clickable:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(var(--v-theme-primary), 0.5);
 }
 
 .pg-tile__quick-actions {
