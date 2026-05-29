@@ -4020,7 +4020,7 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-storage-row__actions {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   flex-shrink: 0;
   opacity: 0.65;
   transition: opacity 0.12s ease;
