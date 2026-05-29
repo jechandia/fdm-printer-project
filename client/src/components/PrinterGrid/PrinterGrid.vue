@@ -34,13 +34,6 @@
       <v-icon size="large" class="mr-2">delete_forever</v-icon>
       <span class="text-h6">Drop here to remove from grid</span>
     </div>
-
-    <img
-      alt="PrusaHero Background"
-      class="grid-bg-img align-content-center"
-      src="/img/logo.svg"
-      style="opacity: 0.08; pointer-events: none"
-    />
   </div>
 </template>
 
@@ -213,12 +206,4 @@ async function onDropRemove(ev: DragEvent) {
   }
 }
 
-.grid-bg-img {
-  position: fixed;
-  height: 100vh;
-  top: 50vh;
-  width: 600%;
-  left: -250%;
-  filter: grayscale(100%);
-}
 </style>
