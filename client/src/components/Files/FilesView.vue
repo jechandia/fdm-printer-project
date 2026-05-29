@@ -1834,6 +1834,19 @@ const openQueueDialog = (file: FileMetadata) => {
   max-width: 380px;
 }
 
+/* The chip's leading icon renders as tall as the chip, so it touches the
+   top/bottom edge. Shrink the icon below the chip height to give it vertical
+   breathing room. */
+.fl-row__meta :deep(.v-chip) {
+  min-height: 22px;
+}
+
+.fl-row__meta :deep(.v-chip .v-icon) {
+  font-size: 13px !important;
+  width: 13px;
+  height: 13px;
+}
+
 .fl-row__actions {
   display: flex;
   align-items: center;
