@@ -1276,32 +1276,102 @@ const uploadItems = async (items: UploadItem[]) => {
     }
   }
 
-  // 2) Upload each file into its destination folder.
+  // 2) Upload each file into its destination folder. A 409 means a file with
+  // that name already exists in that folder — collect those separately from
+  // genuine failures so we can offer to overwrite them.
   let failures = 0
+  const conflicts: Array<{ file: File; folderPath: string | null }> = []
   for (let i = 0; i < accepted.length; i++) {
     const { file, dir } = accepted[i]
+    const folderPath = resolveFolderPath(dir)
     try {
-      await FileStorageService.uploadFile(file, resolveFolderPath(dir))
+      await FileStorageService.uploadFile(file, folderPath)
       uploadProgress.value[i].percent = 100
-    } catch (error) {
-      console.error(`Failed to upload ${file.name}:`, error)
-      uploadProgress.value[i].error = 'Failed'
+    } catch (error: any) {
       uploadProgress.value[i].percent = 100
-      failures++
+      if (error?.response?.status === 409) {
+        uploadProgress.value[i].error = 'Already exists'
+        conflicts.push({ file, folderPath })
+      } else {
+        console.error(`Failed to upload ${file.name}:`, error)
+        uploadProgress.value[i].error = 'Failed'
+        failures++
+      }
     }
   }
 
   uploading.value = false
-  const ok = accepted.length - failures
-  if (ok > 0) snackbar.info(`Uploaded ${ok} file${ok === 1 ? '' : 's'}`)
-  if (failures > 0) snackbar.error(`${failures} file${failures === 1 ? '' : 's'} failed to upload`)
+  const ok = accepted.length - failures - conflicts.length
+  const summary: string[] = []
+  if (ok > 0) summary.push(`Uploaded ${ok}`)
+  if (conflicts.length > 0) summary.push(`${conflicts.length} already existed`)
+  if (failures > 0) summary.push(`${failures} failed`)
+  if (summary.length) snackbar.info(summary.join(' · '))
   if (skipped > 0) snackbar.info(`Skipped ${skipped} unsupported file${skipped === 1 ? '' : 's'}`)
 
-  // Reload files + folder tree after upload.
+  await loadFiles()
+  await loadFolderTree()
+
+  // Offer to overwrite the files that were skipped because they already exist.
+  if (conflicts.length > 0) {
+    const overwrite = await confirmDialog({
+      title: `${conflicts.length} file${conflicts.length === 1 ? '' : 's'} already existed`,
+      message:
+        conflicts.length === 1
+          ? 'It was kept as-is to avoid overwriting. Replace it with the version you just selected?'
+          : 'They were kept as-is to avoid overwriting. Replace them with the versions you just selected?',
+      confirmText: `Overwrite ${conflicts.length}`,
+      severity: 'warning',
+      icon: 'sync',
+    })
+    if (overwrite) {
+      await overwriteConflicts(conflicts)
+      return
+    }
+  }
+
   setTimeout(() => {
     uploadProgress.value = []
-    loadFiles()
-    loadFolderTree()
+  }, 1500)
+}
+
+// Replace each conflicting file: delete the existing one, then re-upload the
+// new version into the same folder.
+const overwriteConflicts = async (
+  conflicts: Array<{ file: File; folderPath: string | null }>
+) => {
+  uploading.value = true
+  uploadProgress.value = conflicts.map((c) => ({
+    fileName: c.folderPath ? `${c.folderPath}/${c.file.name}` : c.file.name,
+    percent: 0,
+  }))
+
+  let done = 0
+  let failed = 0
+  for (let i = 0; i < conflicts.length; i++) {
+    const c = conflicts[i]
+    try {
+      // The backend replaces the existing file atomically: the old one is only
+      // removed once the new upload is saved, so a failure here leaves it intact.
+      await FileStorageService.uploadFile(c.file, c.folderPath, true)
+      uploadProgress.value[i].percent = 100
+      done++
+    } catch (error) {
+      console.error(`Failed to overwrite ${c.file.name}:`, error)
+      uploadProgress.value[i].percent = 100
+      uploadProgress.value[i].error = 'Failed'
+      failed++
+    }
+  }
+
+  uploading.value = false
+  snackbar.info(
+    failed > 0 ? `Overwrote ${done}, ${failed} failed` : `Overwrote ${done} file${done === 1 ? '' : 's'}`
+  )
+  await loadFiles()
+  await loadFolderTree()
+  setTimeout(() => {
+    uploadProgress.value = []
   }, 1500)
 }
 

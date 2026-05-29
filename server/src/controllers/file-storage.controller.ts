@@ -441,7 +441,17 @@ export class FileStorageController {
 
     // Uniqueness is scoped to the destination folder, so the same filename can
     // live in different folders (needed for bulk/folder uploads).
-    await this.fileStorageService.validateUniqueFilename(file.originalname, folderPath);
+    //
+    // With `overwrite`, we don't reject a same-name collision; instead we
+    // remember the existing file and delete it only AFTER the new one is
+    // safely saved below — so a failed upload never destroys the old file.
+    const overwrite = req.body?.overwrite === "true" || req.body?.overwrite === true;
+    let previousDuplicate: { fileStorageId: string } | null = null;
+    if (overwrite) {
+      previousDuplicate = await this.fileStorageService.findDuplicateByOriginalFileName(file.originalname, folderPath);
+    } else {
+      await this.fileStorageService.validateUniqueFilename(file.originalname, folderPath);
+    }
 
     const ext = extname(file.originalname);
     const tempPathWithExt = file.path + ext;
@@ -468,6 +478,14 @@ export class FileStorageController {
         thumbnailMetadata,
         folderPath,
       );
+
+      // Overwrite is now safe: the replacement is fully saved, so drop the
+      // previous file. Skip when the deterministic id is unchanged (identical
+      // content+name+folder) — that already overwrote in place.
+      if (previousDuplicate && previousDuplicate.fileStorageId !== fileStorageId) {
+        await this.fileStorageService.deleteFile(previousDuplicate.fileStorageId);
+        this.logger.log(`Overwrote ${file.originalname}: removed previous ${previousDuplicate.fileStorageId}`);
+      }
 
       res.send({
         message: "File uploaded successfully",

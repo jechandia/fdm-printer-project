@@ -114,10 +114,13 @@ export class FileStorageService extends BaseService {
     return this.post(path, {})
   }
 
-  static async uploadFile(file: File, folderPath: string | null = null): Promise<any> {
+  static async uploadFile(file: File, folderPath: string | null = null, overwrite = false): Promise<any> {
     const formData = new FormData()
     formData.append('file', file)
     if (folderPath) formData.append('folderPath', folderPath)
+    // When set, the backend atomically replaces an existing same-name file in
+    // the folder (the old one is only removed after the new one is saved).
+    if (overwrite) formData.append('overwrite', 'true')
 
     const path = '/api/v2/file-storage/upload'
     const response = await this.postUpload(path, formData, {
