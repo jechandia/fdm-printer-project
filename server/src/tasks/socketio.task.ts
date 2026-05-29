@@ -8,6 +8,7 @@ import EventEmitter2 from "eventemitter2";
 import { PrinterCache } from "@/state/printer.cache";
 import { LoggerService } from "@/handlers/logger";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
+import { PrintQueueService } from "@/services/print-queue.service";
 
 export class SocketIoTask {
   logger: LoggerService;
@@ -21,6 +22,7 @@ export class SocketIoTask {
     private readonly printerCache: PrinterCache,
     private readonly fileUploadTrackerCache: FileUploadTrackerCache,
     private readonly eventEmitter2: EventEmitter2,
+    private readonly printQueueService: PrintQueueService,
   ) {
     this.logger = loggerFactory(SocketIoTask.name);
 
@@ -63,6 +65,11 @@ export class SocketIoTask {
       socketStates,
       printerEvents,
       trackedUploads,
+      // Queue upload progress keyed by printerId. Mutated by
+      // PrintQueueService while a dispatch's PUT is streaming; included on
+      // every periodic update so the tile can render a "Transferring…"
+      // bar without an extra round-trip per second.
+      queueUploads: this.printQueueService.getActiveUploads(),
     };
 
     this.socketIoGateway.send(IO_MESSAGES.Update, socketIoData);

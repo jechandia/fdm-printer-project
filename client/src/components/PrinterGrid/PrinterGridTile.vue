@@ -170,7 +170,19 @@
             </div>
 
             <v-progress-linear
-              v-if="currentProgress !== undefined"
+              v-if="uploadProgress"
+              :model-value="uploadProgress.percent"
+              :indeterminate="uploadProgress.percent === 0"
+              color="info"
+              bg-color="rgba(255,255,255,0.08)"
+              height="5"
+              rounded
+              striped
+              class="pg-tile__progress"
+              :title="`Transferring · ${uploadProgress.percent}% · ${uploadProgress.fileName}`"
+            />
+            <v-progress-linear
+              v-else-if="currentProgress !== undefined"
               :model-value="currentProgress"
               :color="progressBarColor"
               bg-color="rgba(255,255,255,0.08)"
@@ -207,14 +219,21 @@
               </v-tooltip>
 
               <span
-                v-if="currentProgress !== undefined"
+                v-if="uploadProgress"
+                class="pg-tile__percent"
+                title="Transferring file to printer"
+              >
+                ↑ {{ uploadProgress.percent }}%
+              </span>
+              <span
+                v-else-if="currentProgress !== undefined"
                 class="pg-tile__percent"
               >
                 {{ currentProgress.toFixed(1) }}%
               </span>
 
               <span
-                v-if="timeRemainingFormatted"
+                v-if="!uploadProgress && timeRemainingFormatted"
                 class="pg-tile__eta"
                 :title="etaClockFormatted ? `Done at ${etaClockFormatted}` : 'Estimated time remaining'"
               >
@@ -498,6 +517,19 @@ const currentProgress = computed(() => {
 
   const job = currentJob.value
   return job?.progress?.completion
+})
+
+// Queue dispatch transfer progress for this printer. Populated server-side
+// while a STARTING-status job's PUT is streaming to PrusaLink — the
+// printer itself reports IDLE during the upload, so `currentProgress`
+// (which reads the firmware's print progress) is unset. We display this
+// instead so the user knows the upload is alive and how close to done.
+const uploadProgress = computed<{ percent: number; fileName: string } | null>(() => {
+  if (!printerId.value) return null
+  const entry = printerStateStore.queueUploadsByPrinterId[printerId.value]
+  if (!entry) return null
+  const pct = entry.progress === null ? 0 : Math.round(entry.progress * 100)
+  return { percent: pct, fileName: entry.fileName }
 })
 
 const timeRemainingSeconds = computed<number | null>(() => {

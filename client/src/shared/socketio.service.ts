@@ -190,6 +190,11 @@ export class SocketIoService {
     if (message.printerEvents) {
       this.printerStateStore.setPrinterEvents(message.printerEvents);
     }
+
+    // queueUploads is the per-printer transfer progress for in-flight queue
+    // dispatches — null/missing is the steady state, so write an empty
+    // object rather than leaving the previous snapshot around.
+    this.printerStateStore.setQueueUploads(message.queueUploads ?? {});
   }
 
   private setupConnectionHandlers() {

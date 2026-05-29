@@ -12,6 +12,21 @@ import { SOCKET_STATE } from "@/shared/dtos/socket-state.type";
 import { API_STATE } from "@/shared/dtos/api-state.type";
 import { PrinterMaintenanceLogService } from "@/services/orm/printer-maintenance-log.service";
 import { BadRequestException } from "@/exceptions/runtime.exceptions";
+import { uploadProgressEvent } from "@/constants/event.constants";
+import { v4 as uuidv4 } from "uuid";
+import type { AxiosProgressEvent } from "axios";
+
+export interface QueueUploadProgress {
+  printerId: number;
+  jobId: number;
+  fileName: string;
+  // 0-1 (axios progress). Null when the printer's server hasn't sent any
+  // bytes yet (initial connection / digest-auth dance) — UI should treat
+  // null as "transfer starting".
+  progress: number | null;
+  loaded: number;
+  total: number | null;
+}
 
 // Subfolder on the printer's own storage where File-Storage prints are uploaded.
 // Keeps print copies out of the printer's root and lets us clean them up: the
@@ -66,6 +81,9 @@ export interface IPrintQueueService {
   processQueue(printerId: number): Promise<PrintJob | null>;
 
   resetStrandedDispatches(): Promise<number>;
+
+  /** Snapshot of in-flight queue uploads keyed by printerId. */
+  getActiveUploads(): Record<number, QueueUploadProgress>;
 }
 
 /**
@@ -76,6 +94,13 @@ export class PrintQueueService implements IPrintQueueService {
   printerRepository: Repository<Printer>;
   eventEmitter2: EventEmitter2;
   private readonly logger: LoggerService;
+  // Live upload progress keyed by printerId. Populated by
+  // `dispatchToPrinter` while the PUT/POST is streaming and cleared in a
+  // `finally` so a stuck connection can't leave a phantom entry. Read
+  // through `getActiveUploads()` by SocketIoTask and broadcast in the
+  // periodic update payload — that's how the grid tile's "Transferring…"
+  // progress bar gets its data.
+  private readonly uploadProgressByPrinterId = new Map<number, QueueUploadProgress>();
 
   constructor(
     loggerFactory: ILoggerFactory,
@@ -282,6 +307,14 @@ export class PrintQueueService implements IPrintQueueService {
    *
    * queuePosition is left intact so the job keeps its slot.
    */
+  getActiveUploads(): Record<number, QueueUploadProgress> {
+    const out: Record<number, QueueUploadProgress> = {};
+    for (const [printerId, progress] of this.uploadProgressByPrinterId.entries()) {
+      out[printerId] = progress;
+    }
+    return out;
+  }
+
   async resetStrandedDispatches(): Promise<number> {
     const stranded = await this.printJobRepository.find({ where: { status: "STARTING" } });
     if (stranded.length === 0) return 0;
@@ -524,14 +557,40 @@ export class PrintQueueService implements IPrintQueueService {
       const fileSize = this.fileStorageService.getFileSize(job.fileStorageId);
       const fileStream = this.fileStorageService.readFileStream(job.fileStorageId);
 
+      // Generate a per-dispatch correlation token. PrusaLinkApi emits
+      // `upload.progress.${token}` events with axios's progress payload
+      // each time bytes flush; we mirror that into the per-printer map so
+      // the next periodic socketio update can surface a transfer bar in
+      // the grid tile.
+      const uploadToken = `queue-${job.id}-${uuidv4()}`;
+      const onProgress = (_token: string, event: AxiosProgressEvent) => {
+        this.uploadProgressByPrinterId.set(printerId, {
+          printerId,
+          jobId: job.id,
+          fileName,
+          progress: event.progress ?? null,
+          loaded: event.loaded,
+          total: event.total ?? null,
+        });
+      };
+      this.eventEmitter2.on(uploadProgressEvent(uploadToken), onProgress);
+
       this.logger.log(`Uploading file ${fileName} to printer ${printerId} (temp folder) and starting print`);
-      await printerApi.uploadFile({
-        stream: fileStream,
-        fileName,
-        contentLength: fileSize,
-        startPrint: true,
-        targetPath: PRINTER_TEMP_FOLDER,
-      });
+      try {
+        await printerApi.uploadFile({
+          stream: fileStream,
+          fileName,
+          contentLength: fileSize,
+          startPrint: true,
+          targetPath: PRINTER_TEMP_FOLDER,
+          uploadToken,
+        });
+      } finally {
+        // Always detach the listener AND clear the cache slot so a failed
+        // upload doesn't leave a stale "53%" indicator on the tile.
+        this.eventEmitter2.off(uploadProgressEvent(uploadToken), onProgress);
+        this.uploadProgressByPrinterId.delete(printerId);
+      }
     } else {
       throw new Error(`Job ${job.id} has neither fileStorageId nor usbFilePath - cannot submit to printer`);
     }
