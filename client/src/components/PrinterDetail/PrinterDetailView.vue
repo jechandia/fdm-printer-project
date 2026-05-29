@@ -476,29 +476,64 @@
                     </div>
                   </article>
 
-                  <!-- Tail of the queue: compact rows. Position labels
-                       start at 2 since the hero is position 1. -->
+                  <!-- Tail of the queue. Each row mirrors the storage
+                       file rows: thumbnail, format chip, slice stats —
+                       so the operator can scan what's coming next
+                       without expanding anything. Position labels
+                       start at 2 since the hero above is position 1. -->
                   <ol v-if="queue.length > 1" class="pdv-queue-list">
                     <li
                       v-for="(job, idx) in queue.slice(1)"
                       :key="job.id"
                       class="pdv-queue-row"
                     >
-                      <span class="pdv-queue-row__pos">
-                        {{ idx + 2 }}
-                      </span>
-                      <span
-                        class="pdv-queue-row__name text-truncate"
-                        :title="displayQueueName(job)"
-                      >
-                        {{ displayQueueName(job) }}
-                      </span>
-                      <span
-                        v-if="job.estimatedTimeSeconds"
-                        class="text-caption text-medium-emphasis mr-2"
-                      >
-                        ~{{ formatQueueDuration(job.estimatedTimeSeconds) }}
-                      </span>
+                      <span class="pdv-queue-row__pos">{{ idx + 2 }}</span>
+                      <div class="pdv-queue-row__thumb">
+                        <FileThumbnailCell
+                          v-if="job.fileStorageId"
+                          :file-storage-id="job.fileStorageId"
+                          :thumbnails="(job.thumbnails as any) || []"
+                        />
+                        <v-icon v-else size="18" color="medium-emphasis">
+                          insert_drive_file
+                        </v-icon>
+                      </div>
+                      <div class="pdv-queue-row__body">
+                        <div class="pdv-queue-row__titlerow">
+                          <span
+                            class="pdv-queue-row__name text-truncate"
+                            :title="displayQueueName(job)"
+                          >
+                            {{ displayQueueName(job) }}
+                          </span>
+                          <v-chip
+                            v-if="job.fileFormat"
+                            size="x-small"
+                            variant="tonal"
+                            :color="storageFormatChipColor(job.fileFormat)"
+                            density="comfortable"
+                            class="pdv-queue-row__chip"
+                          >
+                            {{ job.fileFormat.toUpperCase() }}
+                          </v-chip>
+                        </div>
+                        <div
+                          v-if="job.estimatedTimeSeconds || formatFilamentGramsHero(job.filamentGrams) || job.filamentType"
+                          class="pdv-queue-row__meta"
+                        >
+                          <span v-if="job.estimatedTimeSeconds">
+                            <v-icon size="11">schedule</v-icon>
+                            ~{{ formatQueueDuration(job.estimatedTimeSeconds) }}
+                          </span>
+                          <span v-if="formatFilamentGramsHero(job.filamentGrams)">
+                            · <v-icon size="11">fitness_center</v-icon>
+                            {{ formatFilamentGramsHero(job.filamentGrams) }}
+                          </span>
+                          <span v-if="job.filamentType" class="text-uppercase">
+                            · {{ job.filamentType }}
+                          </span>
+                        </div>
+                      </div>
                       <v-btn
                         size="x-small"
                         variant="text"
@@ -700,23 +735,6 @@
                           · created {{ formatRelativeDate(folder.createdAt) }}
                         </span>
                       </div>
-                    </div>
-                    <div class="pdv-storage-row__actions" @click.stop>
-                      <v-tooltip location="top" text="Delete folder">
-                        <template #activator="{ props: ap }">
-                          <v-btn
-                            v-bind="ap"
-                            icon
-                            variant="text"
-                            size="x-small"
-                            density="comfortable"
-                            :loading="deletingFolderPath === folder.path"
-                            @click.stop="deleteStorageFolder(folder)"
-                          >
-                            <v-icon size="18">delete_outline</v-icon>
-                          </v-btn>
-                        </template>
-                      </v-tooltip>
                     </div>
                   </button>
 
@@ -2553,7 +2571,6 @@ const storageFiles = ref<FileMetadata[]>([])
 const storageLoading = ref(false)
 const storageSearch = ref('')
 const addingStorageId = ref<string | null>(null)
-const deletingFolderPath = ref<string | null>(null)
 
 type StorageSortKey = 'name' | 'date' | 'size' | 'time'
 const storageSortBy = ref<StorageSortKey>('date')
@@ -2715,30 +2732,6 @@ function storageFormatChipColor(fmt?: string | null): string {
       return 'warning'
     default:
       return 'grey'
-  }
-}
-
-async function deleteStorageFolder(folder: FolderInfo) {
-  const ok = await confirmDialog({
-    title: 'Delete folder?',
-    message: folder.name,
-    hint: 'Files inside the folder will be moved to the parent.',
-    confirmText: 'Delete folder',
-    severity: 'danger',
-  })
-  if (!ok) return
-  deletingFolderPath.value = folder.path
-  try {
-    await FileStorageService.deleteFolder(folder.path, { cascade: true })
-    snackbar.openInfoMessage({ title: 'Folder deleted', subtitle: folder.name })
-    await loadStorage()
-  } catch (e: any) {
-    snackbar.openErrorMessage({
-      title: 'Could not delete folder',
-      subtitle: apiErrorMessage(e),
-    })
-  } finally {
-    deletingFolderPath.value = null
   }
 }
 
@@ -3393,21 +3386,100 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-queue-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.03);
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(var(--v-theme-primary), 0.06);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.pdv-queue-row:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
+  border-color: rgba(var(--v-theme-primary), 0.18);
 }
 
+/* Position badge: small circular chip carrying the queue index so
+   it reads as a serial number rather than a loose digit. */
 .pdv-queue-row__pos {
-  font-weight: 600;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  min-width: 24px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  background: rgba(var(--v-theme-primary), 0.12);
+}
+
+/* Compact 32×32 thumbnail slot. Same chassis as the storage row
+   thumbnail but smaller — the queue list is denser. */
+.pdv-queue-row__thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pdv-queue-row__thumb :deep(.thumbnail-container) {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  cursor: default;
+}
+.pdv-queue-row__thumb :deep(*) {
+  pointer-events: none;
+}
+.pdv-queue-row__thumb :deep(img),
+.pdv-queue-row__thumb :deep(.v-img),
+.pdv-queue-row__thumb :deep(.thumbnail-image) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pdv-queue-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdv-queue-row__titlerow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .pdv-queue-row__name {
   flex: 1 1 auto;
   min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pdv-queue-row__chip {
+  flex-shrink: 0;
+}
+
+.pdv-queue-row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 2px;
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  margin-top: 2px;
+}
+.pdv-queue-row__meta v-icon,
+.pdv-queue-row__meta .v-icon {
+  margin-right: 1px;
+  vertical-align: -1px;
 }
 
 /* Hero card for the head of the queue — drops the "Next up" label, a
