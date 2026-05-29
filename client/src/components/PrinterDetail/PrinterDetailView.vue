@@ -883,11 +883,6 @@
           <v-tabs-window-item value="internal">
             <v-card variant="outlined" class="pdv-card">
               <v-card-title class="d-flex align-center flex-wrap py-2" style="gap: 8px;">
-                <span
-                  v-if="filesPath"
-                  class="text-caption text-medium-emphasis text-truncate"
-                  :title="`/${filesPath}`"
-                >/{{ filesPath }}</span>
                 <v-spacer />
                 <v-text-field
                   v-model="filesSearch"
@@ -898,6 +893,44 @@
                   clearable
                   style="max-width: 200px;"
                 />
+                <!-- Sort menu — newest first by default, same idea as
+                     the Storage tab. Folders only sort by name, so the
+                     menu's other options just affect the file order. -->
+                <v-menu location="bottom end">
+                  <template #activator="{ props: ap }">
+                    <v-btn
+                      v-bind="ap"
+                      icon
+                      variant="text"
+                      size="x-small"
+                      density="comfortable"
+                      title="Sort"
+                    >
+                      <v-icon size="16">sort</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-list density="compact" min-width="180">
+                    <v-list-subheader>Sort by</v-list-subheader>
+                    <v-list-item
+                      v-for="opt in internalSortOptions"
+                      :key="opt.value"
+                      :active="internalSortBy === opt.value"
+                      @click="internalSortBy = opt.value"
+                    >
+                      <template #prepend>
+                        <v-icon size="16">{{ opt.icon }}</v-icon>
+                      </template>
+                      <v-list-item-title>{{ opt.label }}</v-list-item-title>
+                      <template #append>
+                        <v-icon
+                          v-if="internalSortBy === opt.value"
+                          size="14"
+                          color="primary"
+                        >check</v-icon>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
                 <v-btn
                   icon
                   variant="text"
@@ -973,73 +1006,102 @@
                     ↑ Up one level
                   </v-btn>
                 </div>
-                <v-list v-else density="comfortable" class="pdv-files">
-                  <v-list-item
+                <div v-else class="pdv-storage-list">
+                  <button
                     v-if="filesPath && !filesSearch"
-                    prepend-icon="arrow_upward"
-                    title=".."
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--up"
                     @click="navigateFilesTo(parentPathOf(filesPath))"
-                  />
-                  <v-list-item
+                  >
+                    <v-icon size="20" class="pdv-storage-row__leadicon">arrow_upward</v-icon>
+                    <span class="pdv-storage-row__name">..</span>
+                  </button>
+
+                  <button
                     v-for="d in filteredDirs"
                     :key="`d:${d.path}`"
-                    prepend-icon="folder"
-                    :title="leafName(d.path)"
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--folder"
                     @click="navigateFilesTo(d.path)"
                   >
-                    <template #append>
-                      <v-btn
-                        icon
-                        variant="text"
-                        size="small"
-                        title="Delete folder"
-                        @click.stop="deleteFile(d.path)"
-                      >
-                        <v-icon size="18">delete_outline</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-list-item>
-                  <v-list-item
+                    <v-icon size="22" class="pdv-storage-row__leadicon">folder</v-icon>
+                    <div class="pdv-storage-row__body">
+                      <div class="pdv-storage-row__title text-truncate" :title="leafName(d.path)">
+                        {{ leafName(d.path) }}
+                      </div>
+                      <div class="pdv-storage-row__meta">
+                        <span>Folder</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
                     v-for="f in filteredFiles"
                     :key="`f:${f.path}`"
-                    prepend-icon="insert_drive_file"
-                    :title="usbDisplayLabel(f)"
-                    :subtitle="fileSubtitle(f)"
+                    type="button"
+                    class="pdv-storage-row pdv-storage-row--file"
                   >
-                    <template #append>
-                      <v-btn
-                        icon
-                        variant="text"
-                        size="small"
-                        title="Add to queue"
-                        :disabled="!isOnline || addingToQueuePath === f.path"
-                        :loading="addingToQueuePath === f.path"
-                        @click.stop="addUsbToQueue(f)"
-                      >
-                        <v-icon size="18" color="success">add</v-icon>
-                      </v-btn>
-                      <v-btn
-                        icon
-                        variant="text"
-                        size="small"
-                        title="Start print now"
-                        :disabled="!isOnline"
-                        @click.stop="startUsbPrint(f.path)"
-                      >
-                        <v-icon size="18">play_arrow</v-icon>
-                      </v-btn>
-                      <v-btn
-                        icon
-                        variant="text"
-                        size="small"
-                        title="Delete"
-                        @click.stop="deleteFile(f.path)"
-                      >
-                        <v-icon size="18">delete_outline</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-list-item>
-                </v-list>
+                    <v-icon size="22" class="pdv-storage-row__leadicon">insert_drive_file</v-icon>
+                    <div class="pdv-storage-row__body">
+                      <div class="pdv-storage-row__titlerow">
+                        <span class="pdv-storage-row__title text-truncate" :title="usbDisplayLabel(f)">
+                          {{ usbDisplayLabel(f) }}
+                        </span>
+                        <v-chip
+                          v-if="usbFileFormat(f)"
+                          size="x-small"
+                          variant="tonal"
+                          :color="storageFormatChipColor(usbFileFormat(f))"
+                          density="comfortable"
+                          class="pdv-storage-row__chip"
+                        >
+                          {{ usbFileFormat(f)!.toUpperCase() }}
+                        </v-chip>
+                      </div>
+                      <div class="pdv-storage-row__meta">
+                        <span v-if="formatStorageSize(f.size ?? null)">
+                          {{ formatStorageSize(f.size ?? null) }}
+                        </span>
+                        <span v-if="f.date">
+                          · {{ formatRelativeDate(new Date(f.date * 1000)) }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="pdv-storage-row__actions" @click.stop>
+                      <v-tooltip location="top" text="Start print now">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :disabled="!isOnline"
+                            @click.stop="startUsbPrint(f.path)"
+                          >
+                            <v-icon size="18">play_arrow</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                      <v-tooltip location="top" text="Add to queue">
+                        <template #activator="{ props: ap }">
+                          <v-btn
+                            v-bind="ap"
+                            icon
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            :disabled="!isOnline || addingToQueuePath === f.path"
+                            :loading="addingToQueuePath === f.path"
+                            @click.stop="addUsbToQueue(f)"
+                          >
+                            <v-icon size="18" color="success">add</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </button>
+                </div>
               </v-card-text>
             </v-card>
 
@@ -2401,8 +2463,49 @@ function matchesSearch(name: string): boolean {
   if (!filesSearch.value) return true
   return name.toLowerCase().includes(filesSearch.value.toLowerCase())
 }
-const filteredDirs = computed(() => (filesData.value?.dirs ?? []).filter((d) => matchesSearch(leafName(d.path))))
-const filteredFiles = computed(() => (filesData.value?.files ?? []).filter((f) => matchesSearch(usbDisplayLabel(f))))
+type InternalSortKey = 'name' | 'date' | 'size'
+const internalSortBy = ref<InternalSortKey>('date')
+const internalSortOptions: Array<{ value: InternalSortKey; label: string; icon: string }> = [
+  { value: 'date', label: 'Newest first', icon: 'event' },
+  { value: 'name', label: 'Name (A→Z)', icon: 'sort_by_alpha' },
+  { value: 'size', label: 'Largest first', icon: 'data_usage' },
+]
+
+const filteredDirs = computed(() => {
+  const filtered = (filesData.value?.dirs ?? []).filter((d) => matchesSearch(leafName(d.path)))
+  // Folders only sort by name — USB folders don't expose dates / sizes
+  // on the PrusaLink listing, so other modes collapse to alphabetical.
+  return [...filtered].sort((a, b) => leafName(a.path).localeCompare(leafName(b.path)))
+})
+const filteredFiles = computed(() => {
+  const filtered = (filesData.value?.files ?? []).filter((f) => matchesSearch(usbDisplayLabel(f)))
+  const sorted = [...filtered]
+  switch (internalSortBy.value) {
+    case 'name':
+      sorted.sort((a, b) => usbDisplayLabel(a).localeCompare(usbDisplayLabel(b)))
+      break
+    case 'size':
+      sorted.sort((a, b) => (b.size ?? 0) - (a.size ?? 0))
+      break
+    case 'date':
+    default:
+      sorted.sort((a, b) => (b.date ?? 0) - (a.date ?? 0))
+  }
+  return sorted
+})
+
+// Format-from-extension for the chip on each USB file row. PrusaLink
+// listings don't surface a structured fileFormat field — we infer it
+// from the leafName's extension so the operator gets the same
+// color-coded readout they see in Storage.
+function usbFileFormat(f: FileDto): string | null {
+  const leaf = (usbDisplayLabel(f) || leafName(f.path)).toLowerCase()
+  const dot = leaf.lastIndexOf('.')
+  if (dot < 0) return null
+  const ext = leaf.slice(dot + 1)
+  if (ext === 'bgcode' || ext === 'gcode' || ext === '3mf') return ext
+  return null
+}
 
 function leafName(p: string): string {
   return p.split(/[/\\]/).filter(Boolean).pop() ?? p
@@ -2420,19 +2523,6 @@ function parentPathOf(p: string): string {
   parts.pop()
   return parts.join('/')
 }
-function fileSubtitle(f: FileDto): string {
-  const parts: string[] = []
-  if (typeof f.size === 'number') {
-    if (f.size < 1024) parts.push(`${f.size} B`)
-    else if (f.size < 1024 * 1024) parts.push(`${(f.size / 1024).toFixed(0)} KB`)
-    else parts.push(`${(f.size / 1024 / 1024).toFixed(1)} MB`)
-  }
-  if (typeof f.date === 'number') {
-    parts.push(new Date(f.date * 1000).toLocaleDateString())
-  }
-  return parts.join(' · ')
-}
-
 async function loadFiles() {
   if (!props.printerId) return
   filesLoading.value = true
@@ -2555,31 +2645,6 @@ async function addUsbToQueue(f: FileDto) {
   }
 }
 
-async function deleteFile(path: string) {
-  if (!props.printerId) return
-  // Surface the friendly name in the confirm/snackbar so the operator
-  // recognizes the file. Folders only carry a literal path, but a known
-  // file entry in filesData may have a resolved displayName.
-  const known = filesData.value?.files.find((f) => f.path === path)
-  const label = known ? usbDisplayLabel(known) : leafName(path)
-  const ok = await confirmDialog({
-    title: 'Delete file?',
-    message: label,
-    confirmText: 'Delete',
-    severity: 'danger',
-  })
-  if (!ok) return
-  try {
-    await PrinterRemoteFileService.deleteFileOrFolder(props.printerId, path)
-    snackbar.openInfoMessage({ title: 'File deleted', subtitle: label })
-    await loadFiles()
-  } catch (e: any) {
-    snackbar.openErrorMessage({
-      title: 'Could not delete',
-      subtitle: e?.message ?? 'Unknown error',
-    })
-  }
-}
 
 // ── Storage panel (file-storage source, in Overview) ──
 // Lives in Overview so the operator can queue files without leaving
