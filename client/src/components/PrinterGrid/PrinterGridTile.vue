@@ -468,8 +468,13 @@ async function cancelDispatch() {
     // so cancel-by-keystroke and cancel-by-network-drop produce the same
     // user-facing notification.
   } catch (e: any) {
-    // 404 means "nothing to cancel" — also benign, just noise.
-    if (e?.response?.status !== 404) {
+    // Treat 404 / 400 as benign no-ops. 404 means "nothing to cancel"
+    // (the upload already finished or never started). 400 we saw in
+    // production when the route was shadowed by `/:printerId/:jobId` —
+    // routing fixes in the server should keep that from recurring, but
+    // if it does, the user gets nothing useful from a toast.
+    const status = e?.response?.status
+    if (status !== 404 && status !== 400) {
       snackbar.openErrorMessage({
         title: 'Could not cancel transfer',
         subtitle: e?.message ?? 'Unknown error',
