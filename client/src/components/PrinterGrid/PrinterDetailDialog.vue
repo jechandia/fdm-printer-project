@@ -128,16 +128,126 @@
             </template>
           </v-data-table>
         </div>
+
+        <!-- Maintenance log. Backend already supports list / create /
+             complete via `PrinterMaintenanceLogService`; the existing
+             `PrinterMaintenanceDialog` handled creation but was only
+             reachable from the file explorer side nav. Surfacing it here
+             gives the operator a place to see what's outstanding and
+             record fixes alongside the print history. -->
+        <div class="mt-6">
+          <div class="d-flex align-center mb-2">
+            <div class="text-overline text-medium-emphasis">Maintenance</div>
+            <v-progress-circular
+              v-if="maintenanceLoading"
+              indeterminate
+              size="14"
+              width="2"
+              class="ml-2"
+            />
+            <v-spacer />
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="primary"
+              prepend-icon="build"
+              :disabled="!printerId"
+              @click="openCreateMaintenanceDialog"
+            >
+              Log maintenance
+            </v-btn>
+          </div>
+
+          <div
+            v-if="maintenanceLogs.length === 0 && !maintenanceLoading"
+            class="text-body-2 text-medium-emphasis pdd-empty"
+          >
+            No maintenance entries yet for this printer.
+          </div>
+
+          <div v-else class="pdd-maint-list">
+            <div
+              v-for="log in maintenanceLogs"
+              :key="log.id"
+              class="pdd-maint-row"
+              :class="{ 'pdd-maint-row--active': !log.completed }"
+            >
+              <div class="pdd-maint-row__header">
+                <v-chip
+                  size="x-small"
+                  variant="tonal"
+                  :color="log.completed ? 'success' : 'warning'"
+                  density="comfortable"
+                >
+                  {{ log.completed ? 'Resolved' : 'Active' }}
+                </v-chip>
+                <span class="pdd-maint-row__cause text-body-2 ml-2">
+                  {{ log.metadata?.cause || 'Unspecified cause' }}
+                </span>
+                <v-spacer />
+                <span class="text-caption text-medium-emphasis">
+                  {{ formatDateOrDash(log.createdAt) }} · {{ log.createdBy || 'unknown' }}
+                </span>
+                <v-btn
+                  v-if="!log.completed"
+                  size="x-small"
+                  variant="text"
+                  color="success"
+                  class="ml-2"
+                  :loading="completingLogId === log.id"
+                  @click="completeMaintenance(log.id)"
+                >
+                  Mark complete
+                </v-btn>
+              </div>
+              <div
+                v-if="log.metadata?.notes"
+                class="pdd-maint-row__notes text-caption text-medium-emphasis mt-1"
+              >
+                {{ log.metadata.notes }}
+              </div>
+              <div
+                v-if="log.metadata?.partsInvolved?.length"
+                class="pdd-maint-row__parts mt-1"
+              >
+                <v-chip
+                  v-for="part in log.metadata.partsInvolved"
+                  :key="part"
+                  size="x-small"
+                  variant="outlined"
+                  density="comfortable"
+                  class="mr-1"
+                >
+                  {{ part }}
+                </v-chip>
+              </div>
+              <div
+                v-if="log.completed && log.metadata?.completionNotes"
+                class="pdd-maint-row__completion text-caption mt-1"
+              >
+                ↳ {{ log.metadata.completionNotes }}
+                <span class="text-medium-emphasis">
+                  · {{ formatDateOrDash(log.completedAt) }} · {{ log.completedBy || 'unknown' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </v-card-text>
     </v-card>
   </v-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { PrintJobService, PrintJobDto } from '@/backend/print-job.service'
+import { PrinterMaintenanceLogService } from '@/backend/printer-maintenance-log.service'
+import type { PrinterMaintenanceLog } from '@/models/printers/printer-maintenance-log.model'
 import { usePrinterStore } from '@/store/printer.store'
+import { useDialog } from '@/shared/dialog.composable'
+import { DialogName } from '@/components/Generic/Dialogs/dialog.constants'
+import { useSnackbar } from '@/shared/snackbar.composable'
 
 const visible = defineModel<boolean>({ required: true })
 
@@ -362,13 +472,76 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   return v
 }
 
-// Sneaky no-op so unused-import lint doesn't flag the watch import — kept
-// in case we want to react to printerId changes later (clear stale data).
+// Maintenance log — loaded fresh each time the dialog opens so a "Log
+// maintenance" action from another part of the app shows up without
+// stale cache surprise. Refetches when visibility flips on, plus after
+// "Log maintenance" / "Mark complete" actions.
+const maintenanceLogs = ref<PrinterMaintenanceLog[]>([])
+const maintenanceLoading = ref(false)
+const completingLogId = ref<number | null>(null)
+const maintenanceDialog = useDialog(DialogName.PrinterMaintenanceDialog)
+const snackbar = useSnackbar()
+
+async function loadMaintenance() {
+  if (!props.printerId) return
+  maintenanceLoading.value = true
+  try {
+    const response = await PrinterMaintenanceLogService.listLogs({
+      printerId: props.printerId,
+      page: 1,
+      pageSize: 20,
+    })
+    // Active first, then most-recent completed; the backend sorts by
+    // createdAt DESC so we just bubble open entries to the top here.
+    const logs = response.logs ?? []
+    maintenanceLogs.value = [
+      ...logs.filter((l) => !l.completed),
+      ...logs.filter((l) => l.completed),
+    ]
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not load maintenance log',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    maintenanceLoading.value = false
+  }
+}
+
+async function openCreateMaintenanceDialog() {
+  if (!props.printerId) return
+  await maintenanceDialog.openDialog({ printerId: props.printerId })
+  // Refresh so the new entry shows up here without closing/reopening.
+  await loadMaintenance()
+}
+
+async function completeMaintenance(logId: number) {
+  completingLogId.value = logId
+  try {
+    await PrinterMaintenanceLogService.complete(logId, {})
+    snackbar.openInfoMessage({ title: 'Maintenance marked complete' })
+    await loadMaintenance()
+  } catch (e: any) {
+    snackbar.openErrorMessage({
+      title: 'Could not complete maintenance',
+      subtitle: e?.message ?? 'Unknown error',
+    })
+  } finally {
+    completingLogId.value = null
+  }
+}
+
+// Auto-load whenever the dialog opens (or printerId changes while open).
 watch(
-  () => props.printerId,
-  () => {
-    /* placeholder for printerId-change reactions */
+  [() => visible.value, () => props.printerId],
+  ([nowVisible, nowPrinterId]) => {
+    if (nowVisible && nowPrinterId) {
+      void loadMaintenance()
+    } else if (!nowVisible) {
+      maintenanceLogs.value = []
+    }
   },
+  { immediate: true },
 )
 </script>
 
@@ -391,5 +564,41 @@ watch(
   /* The footer's row-per-page selector is overkill in a dialog; the table
      is already paged client-side via the 50-row query. */
   display: none;
+}
+
+.pdd-empty {
+  padding: 24px 12px;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.pdd-maint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdd-maint-row {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pdd-maint-row--active {
+  border-color: rgba(var(--v-theme-warning), 0.4);
+  background: rgba(var(--v-theme-warning), 0.06);
+}
+
+.pdd-maint-row__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pdd-maint-row__cause {
+  font-weight: 500;
 }
 </style>
