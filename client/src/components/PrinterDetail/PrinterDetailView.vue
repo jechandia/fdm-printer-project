@@ -1343,6 +1343,7 @@ import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
 import { notifyPrintJobsChanged } from '@/shared/print-jobs-invalidator.composable'
 import { derivePrinterAttention } from '@/shared/printer-attention.util'
 import { displayFileName } from '@/utils/file-name.util'
+import { apiErrorMessage } from '@/utils/error.utils'
 import FileThumbnailCell from '@/components/Files/FileThumbnailCell.vue'
 
 const props = defineProps<{ printerId: number }>()
@@ -2172,7 +2173,7 @@ async function addUsbToQueue(f: FileDto) {
   } catch (e: any) {
     snackbar.openErrorMessage({
       title: 'Could not queue file',
-      subtitle: e?.message ?? 'Unknown error',
+      subtitle: apiErrorMessage(e),
     })
   } finally {
     addingToQueuePath.value = null
@@ -2291,7 +2292,7 @@ async function addStorageToQueue(f: FileMetadata) {
   } catch (e: any) {
     snackbar.openErrorMessage({
       title: 'Could not queue file',
-      subtitle: e?.message ?? 'Unknown error',
+      subtitle: apiErrorMessage(e),
     })
   } finally {
     addingStorageId.value = null
