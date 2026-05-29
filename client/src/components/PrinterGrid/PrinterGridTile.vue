@@ -6,8 +6,6 @@
       :ripple="isOnline"
       :class="{
         'pg-tile--large': largeTilesEnabled,
-        'pg-tile--selected': selected,
-        'pg-tile--unselected': unselected,
         'pg-tile--empty': !printer,
         'pg-tile--draggable': !!printer,
         'pg-tile--offline': !!printer && !isOnline,
@@ -16,7 +14,6 @@
       class="pg-tile rounded-lg"
       :style="!!printer ? { '--state-color': printerStateColor } : undefined"
       elevation="2"
-      @click="selectPrinterPosition()"
       @dragstart="onDragStart"
     >
       <!-- ─── EMPTY SLOT ────────────────────────────────────────── -->
@@ -506,15 +503,6 @@ const isPaused = computed(() => {
   return printerStateStore.isPrinterPaused(printerId.value)
 })
 
-const selected = computed(() => {
-  if (!printerId.value) return false
-  return printerStore.isSelectedPrinter(printerId.value)
-})
-
-const unselected = computed(() => {
-  return printerStore.selectedPrinters?.length && !selected.value
-})
-
 const preferCancelOverQuickStop = computed(() => {
   return settingsStore.preferCancelOverQuickStop
 })
@@ -840,13 +828,6 @@ const clickConnectUsb = async () => {
   await PrintersService.sendPrinterConnectCommand(printerId.value)
 }
 
-const selectPrinterPosition = async () => {
-  if (!props.printer || !printerId.value) {
-    return
-  }
-
-  printerStore.toggleSelectedPrinter(props.printer)
-}
 </script>
 
 <style scoped>
@@ -874,15 +855,6 @@ const selectPrinterPosition = async () => {
 .pg-tile--draggable:active {
   cursor: grabbing;
   opacity: 0.7;
-}
-
-.pg-tile--selected {
-  outline: 2px solid rgb(var(--v-theme-primary));
-  outline-offset: -2px;
-}
-
-.pg-tile--unselected {
-  opacity: 0.55;
 }
 
 .pg-tile--offline {
