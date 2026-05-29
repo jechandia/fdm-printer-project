@@ -1379,6 +1379,7 @@ const getQueueStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     'QUEUED': 'info',
     'PENDING': 'warning',
+    'STARTING': 'primary',
     'PRINTING': 'success',
     'COMPLETED': 'success',
     'FAILED': 'error',
