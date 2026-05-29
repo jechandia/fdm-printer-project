@@ -14,6 +14,7 @@
       class="pg-tile rounded-lg"
       :style="!!printer ? { '--state-color': printerStateColor } : undefined"
       elevation="2"
+      @click="onTileClick"
       @dragstart="onDragStart"
     >
       <!-- ─── EMPTY SLOT ────────────────────────────────────────── -->
@@ -43,64 +44,17 @@
           :title="`Last update ${livenessAgeSeconds}s ago`"
         />
 
-        <!-- Top row: name + quick actions -->
+        <!-- Top row: printer name. The whole card is the click target —
+             the v-card @click navigates to /printer/:id, so the name is
+             plain text here. The thumbnail still opens the preview
+             dialog via its own @click.stop. -->
         <header class="pg-tile__header">
           <span
-            class="pg-tile__name pg-tile__name--clickable text-truncate"
-            :title="`${printer.name} — click to view print history`"
-            @click.stop.prevent="detailOpen = true"
+            class="pg-tile__name text-truncate"
+            :title="printer.name"
           >
             {{ printer.name }}
           </span>
-          <div class="pg-tile__quick-actions" @click.stop>
-            <v-btn
-              variant="tonal"
-              color="primary"
-              size="x-small"
-              density="comfortable"
-              icon
-              class="pg-tile__qa-btn"
-              @click.prevent.stop="clickInfo()"
-            >
-              <v-icon size="16">folder</v-icon>
-              <v-tooltip activator="parent" location="top">Files</v-tooltip>
-            </v-btn>
-            <v-btn
-              variant="tonal"
-              color="info"
-              size="x-small"
-              density="comfortable"
-              icon
-              class="pg-tile__qa-btn"
-              @click.prevent.stop="clickShowCurrentJob()"
-            >
-              <v-icon size="16">work</v-icon>
-              <v-tooltip activator="parent" location="top">Jobs</v-tooltip>
-            </v-btn>
-            <v-btn
-              :disabled="!isOnline || !isOperational"
-              variant="tonal"
-              size="x-small"
-              density="comfortable"
-              icon
-              class="pg-tile__qa-btn"
-              @click.prevent.stop="clickOpenPrinterControlDialog()"
-            >
-              <v-icon size="16">open_with</v-icon>
-              <v-tooltip activator="parent" location="top">Move &amp; home</v-tooltip>
-            </v-btn>
-            <v-btn
-              variant="tonal"
-              size="x-small"
-              density="comfortable"
-              icon
-              class="pg-tile__qa-btn"
-              @click.prevent.stop="clickOpenSettings()"
-            >
-              <v-icon size="16">settings</v-icon>
-              <v-tooltip activator="parent" location="top">Settings</v-tooltip>
-            </v-btn>
-          </div>
         </header>
 
         <!-- Attention strip: visible whenever this printer needs the user
@@ -361,11 +315,6 @@
       :remaining-seconds="timeRemainingSeconds"
       :metadata="previewMetadata"
     />
-
-    <PrinterDetailDialog
-      v-model="detailOpen"
-      :printer-id="printerId"
-    />
   </div>
 </template>
 
@@ -389,7 +338,6 @@ import { usePrinterTileThumbnailQuery, printerTileThumbnailQueryKey } from '@/qu
 import { useOnPrinterThumbnailChanged } from '@/shared/printer-thumbnail-invalidator.composable'
 import { useQueryClient } from '@tanstack/vue-query'
 import PrinterTilePreviewDialog from './PrinterTilePreviewDialog.vue'
-import PrinterDetailDialog from './PrinterDetailDialog.vue'
 import { dragAppId, INTENT, PrinterPlace, DRAG_EVENTS } from '@/shared/drag.constants'
 import { hasEmergencyStop, hasPrinterControl, hasSerialConnection } from '@/shared/printer-capabilities.constants'
 import logoPng from '@/assets/logo.png'
@@ -436,7 +384,6 @@ useOnPrinterThumbnailChanged((event) => {
 })
 
 const previewOpen = ref(false)
-const detailOpen = ref(false)
 const cancelInFlight = ref(false)
 
 // We let the preview open whenever there's ANY meaningful thing to show
@@ -737,16 +684,13 @@ const clickResumePrint = async () => {
   notifyPrintJobsChanged({ printerId: printerId.value, reason: 'tile:resume' })
 }
 
-const clickInfo = () => {
-  // Folder button now navigates to the per-printer detail view's Print
-  // tab, with the right column's sub-tab pre-selected to Internal Storage
-  // (the printer's USB browser). Keeps every tile entry point flowing
-  // through the same hub.
+// The whole tile is the entry point to the per-printer detail view —
+// clicking anywhere on the card that isn't a control button or the
+// thumbnail navigates to /printer/:id. Empty slots stay inert so
+// clicks fall through to the PrinterCreateAction inside.
+const onTileClick = () => {
   if (!props.printer) return
-  void router.push({
-    path: `/printer/${props.printer.id}`,
-    query: { tab: 'overview', storage: 'internal' }
-  })
+  void router.push({ path: `/printer/${props.printer.id}` })
 }
 
 const clickRefreshSocket = async () => {
@@ -771,37 +715,6 @@ const onDragStart = (ev: DragEvent) => {
       printerId: props.printer.id
     } as PrinterPlace)
   )
-}
-
-const clickOpenSettings = () => {
-  const printer = props.printer
-  if (!printer) return
-  void router.push({ path: `/printer/${printer.id}`, query: { tab: 'settings' } })
-}
-
-const clickShowCurrentJob = async () => {
-  if (!printerId.value) {
-    snackbar.openInfoMessage({
-      title: 'No Printer',
-      subtitle: 'No printer to find jobs for'
-    })
-    return
-  }
-  // Briefcase now opens the printer detail view on its History tab,
-  // which is what the user actually wants for "show me this printer's
-  // jobs" — `/jobs?printerId=X` was a global page filtered down.
-  await router.push({ path: `/printer/${printerId.value}`, query: { tab: 'history' } })
-}
-
-const clickOpenPrinterControlDialog = async () => {
-  if (!printerId.value || !props.printer) {
-    throw new Error('PrinterId not set, cant open dialog')
-  }
-  // Move/home stays a transient dialog (jog controls aren't the kind of
-  // thing you read — you press and walk to the printer). But we route
-  // through the detail view first so the rest of the printer context
-  // (current job, queue) is visible while jogging.
-  void router.push({ path: `/printer/${printerId.value}`, query: { autoOpen: 'control' } })
 }
 
 const clickQuickStop = async () => {
@@ -961,29 +874,6 @@ const clickConnectUsb = async () => {
   font-weight: 600;
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.pg-tile__name--clickable {
-  cursor: pointer;
-}
-
-.pg-tile__name--clickable:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: rgba(var(--v-theme-primary), 0.5);
-}
-
-.pg-tile__quick-actions {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
-}
-
-.pg-tile__qa-btn {
-  /* Slightly bigger hit target than default x-small, keeping the row tight. */
-  width: 26px !important;
-  height: 26px !important;
 }
 
 /* ─── Body (thumbnail + info) ────────────────────────────────── */
