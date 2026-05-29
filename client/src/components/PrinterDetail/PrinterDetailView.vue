@@ -3203,7 +3203,8 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 .pdv-hero-header__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  align-content: center;
+  gap: 4px;
   flex-shrink: 0;
   padding: 4px 6px;
   border-radius: 8px;
@@ -3212,13 +3213,24 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   flex-wrap: wrap;
 }
 
+/* Force every v-btn inside the cluster — icon button or chip — to
+   the same 30px height. Without this the icon buttons sit at
+   size="small" (~36px) and the chips at size="x-small" (~24px), and
+   when they wrap to a second row the mismatch reads as off-center.
+   A single height plus align-items: center fixes the centering for
+   both rows. */
+.pdv-hero-header__actions :deep(.v-btn) {
+  min-height: 30px;
+  height: 30px;
+}
+
 /* Thin vertical rule between the secondary icons and the primary
    chips. Gives the two groups breathing room without taking horizontal
    space the way an extra wrapper would. */
 .pdv-hero-header__actions-sep {
   width: 1px;
   height: 18px;
-  margin: 0 6px;
+  margin: 0 4px;
   background: rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
 }
