@@ -247,12 +247,18 @@
     <v-tabs-window v-model="tab" class="pdv-window">
       <!-- ========== OVERVIEW ========== -->
       <v-tabs-window-item value="overview">
-        <v-row dense class="pa-3">
-          <v-col cols="12" md="7">
-            <!-- Current print card — sticky hero already shows file +
-                 progress + temps + ETA, so this card focuses on the
-                 thumbnail + slice metadata that don't fit up there. -->
-            <v-card class="pdv-card pdv-current-card" variant="tonal">
+        <div class="pdv-content">
+          <!-- SECTION: Now printing — current job thumbnail + slice info.
+               Header sticky already shows file + progress + ETA. -->
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Now printing</span>
+              <span
+                v-if="currentJob && progressPercent !== '0.0'"
+                class="pdv-section__hint"
+              >{{ progressPercent }}% · {{ timeRemainingFormatted ?? '—' }}</span>
+            </header>
+            <v-card class="pdv-card pdv-current-card" variant="outlined">
               <v-card-text>
                 <div v-if="!currentJob" class="pdv-empty pdv-empty--card">
                   <v-icon size="56" color="medium-emphasis">pause_circle</v-icon>
@@ -302,60 +308,54 @@
                 </div>
               </v-card-text>
             </v-card>
-          </v-col>
+          </section>
 
-          <v-col cols="12" md="5">
-            <!-- Queue card -->
-            <v-card class="pdv-card" variant="tonal">
-              <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap">
-                <v-icon class="mr-2" color="primary">queue</v-icon>
-                Queue
-                <v-chip
-                  v-if="queue.length > 0"
-                  size="x-small"
-                  variant="tonal"
-                  density="comfortable"
-                  class="ml-2"
-                >
-                  {{ queue.length }}
-                </v-chip>
-                <v-spacer />
-                <v-btn
-                  v-if="queue.length > 0"
-                  size="x-small"
-                  variant="tonal"
-                  color="success"
-                  prepend-icon="play_arrow"
-                  :disabled="!isOnline || !isOperational || queueProcessingNext"
-                  :loading="queueProcessingNext"
-                  @click="processNextInQueue"
-                >
-                  Process next
-                </v-btn>
-                <v-btn
-                  icon
-                  variant="text"
-                  size="x-small"
-                  density="comfortable"
-                  class="ml-1"
-                  title="Refresh queue"
-                  @click="loadQueue"
-                >
-                  <v-icon size="16">refresh</v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="queue.length > 0"
-                  icon
-                  variant="text"
-                  size="x-small"
-                  density="comfortable"
-                  title="Clear queue"
-                  @click="clearQueue"
-                >
-                  <v-icon size="16" color="error">delete_sweep</v-icon>
-                </v-btn>
-              </v-card-title>
-              <v-divider />
+          <!-- SECTION: Queue. "Next up" hero gets the visual weight,
+               tail items list compactly below. -->
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Queue</span>
+              <span
+                v-if="queue.length > 0"
+                class="pdv-section__hint"
+              >{{ queue.length }} job{{ queue.length === 1 ? '' : 's' }}</span>
+              <v-spacer />
+              <v-btn
+                v-if="queue.length > 0"
+                size="x-small"
+                variant="tonal"
+                color="success"
+                prepend-icon="play_arrow"
+                :disabled="!isOnline || !isOperational || queueProcessingNext"
+                :loading="queueProcessingNext"
+                @click="processNextInQueue"
+              >
+                Process next
+              </v-btn>
+              <v-btn
+                icon
+                variant="text"
+                size="x-small"
+                density="comfortable"
+                class="ml-1"
+                title="Refresh queue"
+                @click="loadQueue"
+              >
+                <v-icon size="16">refresh</v-icon>
+              </v-btn>
+              <v-btn
+                v-if="queue.length > 0"
+                icon
+                variant="text"
+                size="x-small"
+                density="comfortable"
+                title="Clear queue"
+                @click="clearQueue"
+              >
+                <v-icon size="16" color="error">delete_sweep</v-icon>
+              </v-btn>
+            </header>
+            <v-card class="pdv-card" variant="outlined">
               <v-card-text>
                 <div v-if="queueLoading" class="text-center">
                   <v-progress-circular indeterminate size="20" width="2" />
@@ -498,51 +498,39 @@
                 </template>
               </v-card-text>
             </v-card>
-          </v-col>
-        </v-row>
+          </section>
 
-        <!-- Storage panel — file-storage files ready to queue. Lives in
-             Overview so the operator can build a queue without
-             tab-switching: pick a file, hit + and it's in. Folder
-             navigation keeps the panel functional on bigger libraries. -->
-        <v-row dense class="px-3 pb-3">
-          <v-col cols="12">
-            <v-card class="pdv-card" variant="tonal">
-              <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap">
-                <v-icon class="mr-2" color="primary">archive</v-icon>
-                Storage
-                <v-chip
-                  v-if="storageCount > 0"
-                  size="x-small"
-                  variant="tonal"
-                  density="comfortable"
-                  class="ml-2"
-                >
-                  {{ storageCount }}
-                </v-chip>
-                <v-spacer />
-                <v-text-field
-                  v-model="storageSearch"
-                  prepend-inner-icon="search"
-                  placeholder="Filter…"
-                  density="compact"
-                  hide-details
-                  clearable
-                  style="max-width: 220px;"
-                  class="mr-2"
-                />
-                <v-btn
-                  icon
-                  variant="text"
-                  size="x-small"
-                  density="comfortable"
-                  title="Refresh"
-                  @click="loadStorage"
-                >
-                  <v-icon size="16">refresh</v-icon>
-                </v-btn>
-              </v-card-title>
-              <v-divider />
+          <!-- SECTION: Storage — file-storage files ready to queue. -->
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Storage</span>
+              <span
+                v-if="storageCount > 0"
+                class="pdv-section__hint"
+              >{{ storageCount }} item{{ storageCount === 1 ? '' : 's' }}</span>
+              <v-spacer />
+              <v-text-field
+                v-model="storageSearch"
+                prepend-inner-icon="search"
+                placeholder="Filter…"
+                density="compact"
+                hide-details
+                clearable
+                style="max-width: 220px;"
+                class="mr-2"
+              />
+              <v-btn
+                icon
+                variant="text"
+                size="x-small"
+                density="comfortable"
+                title="Refresh"
+                @click="loadStorage"
+              >
+                <v-icon size="16">refresh</v-icon>
+              </v-btn>
+            </header>
+            <v-card class="pdv-card" variant="outlined">
               <v-card-text>
                 <!-- Breadcrumb -->
                 <div class="mb-2 text-body-2 text-medium-emphasis pdv-files-crumbs">
@@ -614,13 +602,21 @@
                 </v-list>
               </v-card-text>
             </v-card>
-          </v-col>
-        </v-row>
+          </section>
+        </div>
       </v-tabs-window-item>
 
       <!-- ========== FILES ========== -->
       <v-tabs-window-item value="files">
-        <div class="pa-3">
+        <div class="pdv-content">
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Printer USB</span>
+              <span
+                v-if="filesPath"
+                class="pdv-section__hint"
+              >/{{ filesPath }}</span>
+            </header>
           <!-- Toolbar -->
           <div class="d-flex align-center flex-wrap mb-2" style="gap: 8px;">
             <v-text-field
@@ -799,29 +795,40 @@
             </v-card-actions>
           </v-card>
         </v-dialog>
+          </section>
+        </div>
       </v-tabs-window-item>
 
       <!-- ========== HISTORY ========== -->
       <v-tabs-window-item value="history">
-        <div class="pa-3">
-          <v-row dense>
-            <v-col v-for="stat in stats" :key="stat.label" cols="6" sm="3">
-              <v-card variant="tonal" :color="stat.color">
-                <v-card-text class="py-3">
-                  <div class="text-caption text-medium-emphasis">{{ stat.label }}</div>
-                  <div class="text-h6 mt-1">{{ stat.value }}</div>
-                  <div v-if="stat.sub" class="text-caption text-medium-emphasis mt-1">
-                    {{ stat.sub }}
-                  </div>
-                </v-card-text>
-              </v-card>
-            </v-col>
-          </v-row>
+        <div class="pdv-content">
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">At a glance</span>
+              <span class="pdv-section__hint">Across the last 50 jobs</span>
+            </header>
+            <v-row dense>
+              <v-col v-for="stat in stats" :key="stat.label" cols="6" sm="3">
+                <v-card variant="outlined" :color="stat.color">
+                  <v-card-text class="py-3">
+                    <div class="text-caption text-medium-emphasis">{{ stat.label }}</div>
+                    <div class="text-h6 mt-1">{{ stat.value }}</div>
+                    <div v-if="stat.sub" class="text-caption text-medium-emphasis mt-1">
+                      {{ stat.sub }}
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+          </section>
 
-          <div v-if="durationChartData.length > 0" class="mt-5">
-            <div class="text-overline text-medium-emphasis mb-1">
-              Estimated vs actual duration (last {{ durationChartData.length }} completed prints)
-            </div>
+          <section v-if="durationChartData.length > 0" class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Estimated vs actual</span>
+              <span class="pdv-section__hint">Last {{ durationChartData.length }} completed prints</span>
+            </header>
+            <v-card variant="outlined" class="pdv-card">
+              <v-card-text>
             <svg
               :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
               class="pdv-chart"
@@ -855,19 +862,21 @@
                 </rect>
               </g>
             </svg>
-          </div>
+              </v-card-text>
+            </v-card>
+          </section>
 
-          <div class="mt-5">
-            <div class="d-flex align-center mb-2">
-              <div class="text-overline text-medium-emphasis">Recent jobs</div>
-              <v-spacer />
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Recent jobs</span>
               <v-progress-circular
                 v-if="historyLoading"
                 indeterminate
-                size="16"
+                size="14"
                 width="2"
               />
-            </div>
+            </header>
+            <v-card variant="outlined" class="pdv-card">
             <v-data-table
               :headers="historyHeaders"
               :items="historyItems"
@@ -905,34 +914,43 @@
                 <span v-else class="text-medium-emphasis">—</span>
               </template>
             </v-data-table>
-          </div>
+            </v-card>
+          </section>
         </div>
       </v-tabs-window-item>
 
       <!-- ========== MAINTENANCE ========== -->
       <v-tabs-window-item value="maintenance">
-        <div class="pa-3">
-          <div class="d-flex align-center mb-3">
-            <v-btn
-              size="small"
-              color="primary"
-              variant="tonal"
-              prepend-icon="build"
-              @click="openCreateMaintenance"
-            >
-              Log maintenance
-            </v-btn>
-            <v-spacer />
-            <v-progress-circular
-              v-if="maintenanceLoading"
-              indeterminate
-              size="16"
-              width="2"
-            />
-          </div>
-          <div v-if="maintenanceLogs.length === 0 && !maintenanceLoading" class="pdv-empty">
-            <p class="text-body-2 text-medium-emphasis">
-              No maintenance entries yet for this printer.
+        <div class="pdv-content">
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Maintenance log</span>
+              <span class="pdv-section__hint">
+                {{ maintenanceLogs.filter(l => !l.completed).length }} active ·
+                {{ maintenanceLogs.filter(l => l.completed).length }} resolved
+              </span>
+              <v-spacer />
+              <v-progress-circular
+                v-if="maintenanceLoading"
+                indeterminate
+                size="14"
+                width="2"
+              />
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="build"
+                @click="openCreateMaintenance"
+              >
+                Log maintenance
+              </v-btn>
+            </header>
+          <div v-if="maintenanceLogs.length === 0 && !maintenanceLoading" class="pdv-empty pdv-empty--card">
+            <v-icon size="48" color="medium-emphasis">build</v-icon>
+            <p class="text-body-1 mt-2">No maintenance entries</p>
+            <p class="text-caption text-medium-emphasis">
+              Use the Log maintenance button to record an issue or routine service.
             </p>
           </div>
           <div v-else class="pdv-maint-list">
@@ -993,24 +1011,33 @@
               </div>
             </div>
           </div>
+          </section>
         </div>
       </v-tabs-window-item>
 
       <!-- ========== CAMERAS ========== -->
       <v-tabs-window-item value="cameras">
-        <div class="pa-3">
-          <div v-if="camerasLoading" class="pdv-empty">
+        <div class="pdv-content">
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Live streams</span>
+              <span class="pdv-section__hint" v-if="cameras.length > 0">
+                {{ cameras.length }} camera{{ cameras.length === 1 ? '' : 's' }}
+              </span>
+            </header>
+          <div v-if="camerasLoading" class="pdv-empty pdv-empty--card">
             <v-progress-circular indeterminate size="24" />
           </div>
-          <div v-else-if="cameras.length === 0" class="pdv-empty">
+          <div v-else-if="cameras.length === 0" class="pdv-empty pdv-empty--card">
             <v-icon size="48" color="medium-emphasis">videocam_off</v-icon>
-            <p class="text-body-2 text-medium-emphasis mt-2">
-              No cameras configured for this printer.
+            <p class="text-body-1 mt-2">No cameras for this printer</p>
+            <p class="text-caption text-medium-emphasis">
+              Configure one in the global Cameras page.
             </p>
             <v-btn
-              class="mt-2"
+              class="mt-3"
               size="small"
-              variant="text"
+              variant="tonal"
               prepend-icon="settings"
               to="/cameras"
             >
@@ -1019,7 +1046,7 @@
           </div>
           <v-row v-else dense>
             <v-col v-for="cam in cameras" :key="cam.id" cols="12" md="6">
-              <v-card variant="tonal" class="pdv-card">
+              <v-card variant="outlined" class="pdv-card">
                 <v-card-title class="text-subtitle-1 d-flex align-center">
                   <v-icon class="mr-2" color="primary">videocam</v-icon>
                   {{ cam.name || `Camera ${cam.id}` }}
@@ -1054,56 +1081,57 @@
               </v-card>
             </v-col>
           </v-row>
+          </section>
         </div>
       </v-tabs-window-item>
 
       <!-- ========== SETTINGS ========== -->
       <v-tabs-window-item value="settings">
-        <div class="pa-3">
-          <div class="d-flex align-center mb-3">
-            <span class="text-overline text-medium-emphasis">Printer configuration</span>
-            <v-spacer />
-            <v-btn
-              size="small"
-              color="primary"
-              variant="tonal"
-              prepend-icon="edit"
-              @click="openEditDialog"
-            >
-              Edit printer
-            </v-btn>
-          </div>
-
+        <div class="pdv-content">
+          <section class="pdv-section">
+            <header class="pdv-section__header">
+              <span class="pdv-section__label">Configuration</span>
+              <v-spacer />
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="edit"
+                @click="openEditDialog"
+              >
+                Edit printer
+              </v-btn>
+            </header>
           <v-row dense>
             <v-col cols="12" md="6">
-              <v-card variant="tonal" class="pdv-card">
-                <v-card-title class="text-subtitle-1">
-                  <v-icon class="mr-2" color="primary">info</v-icon>
+              <v-card variant="outlined" class="pdv-card">
+                <v-card-title class="text-subtitle-2">
+                  <v-icon class="mr-2" size="18" color="primary">info</v-icon>
                   Connection
                 </v-card-title>
                 <v-divider />
                 <v-card-text>
                   <dl class="pdv-info">
-                    <dt>Name</dt><dd>{{ printer.name }}</dd>
+                    <dt>Name</dt><dd>{{ printer?.name }}</dd>
                     <dt>URL</dt><dd>
-                      <a :href="printer.printerURL" target="_blank" rel="noopener">
-                        {{ printer.printerURL }}
+                      <a :href="printer?.printerURL" target="_blank" rel="noopener">
+                        {{ printer?.printerURL }}
                       </a>
                     </dd>
                     <dt>Type</dt><dd>{{ printerTypeLabel }}</dd>
-                    <dt>Enabled</dt><dd>{{ printer.enabled ? 'Yes' : 'No' }}</dd>
-                    <dt v-if="printer.disabledReason">Reason</dt>
-                    <dd v-if="printer.disabledReason">{{ printer.disabledReason }}</dd>
+                    <dt>Enabled</dt><dd>{{ printer?.enabled ? 'Yes' : 'No' }}</dd>
+                    <dt v-if="printer?.disabledReason">Reason</dt>
+                    <dd v-if="printer?.disabledReason">{{ printer.disabledReason }}</dd>
                     <dt>Created</dt>
-                    <dd>{{ formatDateOrDash(printer.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
+                    <dd>{{ formatDateOrDash(printer?.dateAdded ? new Date(printer.dateAdded) : null) }}</dd>
                   </dl>
                 </v-card-text>
               </v-card>
             </v-col>
             <v-col cols="12" md="6">
-              <v-card variant="tonal" class="pdv-card">
-                <v-card-title class="text-subtitle-1">
-                  <v-icon class="mr-2" color="primary">memory</v-icon>
+              <v-card variant="outlined" class="pdv-card">
+                <v-card-title class="text-subtitle-2">
+                  <v-icon class="mr-2" size="18" color="primary">memory</v-icon>
                   Runtime
                 </v-card-title>
                 <v-divider />
@@ -1119,6 +1147,7 @@
               </v-card>
             </v-col>
           </v-row>
+          </section>
         </div>
       </v-tabs-window-item>
     </v-tabs-window>
@@ -2333,6 +2362,49 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 
 .pdv-card {
   height: 100%;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Sectioned content layout ---- */
+/* Each major chunk of a tab (Now printing / Queue / Storage / etc.)
+   is wrapped in <section class="pdv-section"> with a small header
+   above it. Sections stack with generous spacing so the page reads as
+   a series of zones rather than a stream of cards. */
+.pdv-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 24px 32px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.pdv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdv-section__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.pdv-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.pdv-section__hint {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  font-variant-numeric: tabular-nums;
 }
 
 .pdv-current-card {
