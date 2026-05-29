@@ -84,6 +84,7 @@ const primaryItems: Array<[string, string, string]> = [
   ['mdi:mdi-camera', 'Cameras', '/cameras'],
   ['mdi:mdi-history', 'Print Jobs', '/jobs'],
   ['mdi:mdi-folder', 'Files', '/files'],
+  ['build', 'Maintenance', '/maintenance'],
 ]
 
 const secondaryItems: Array<[string, string, string]> = [

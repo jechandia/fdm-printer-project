@@ -55,6 +55,7 @@ declare module 'vue' {
     MaintenanceLogDetailsDialog: typeof import('./components/MaintenanceLogs/MaintenanceLogDetailsDialog.vue')['default']
     MaintenanceLogs: typeof import('./components/MaintenanceLogs/MaintenanceLogs.vue')['default']
     MaintenanceLogsView: typeof import('./components/MaintenanceLogs/MaintenanceLogsView.vue')['default']
+    MaintenanceView: typeof import('./components/Maintenance/MaintenanceView.vue')['default']
     ManageTagsDialog: typeof import('./components/Generic/Dialogs/ManageTagsDialog.vue')['default']
     NavigationBar: typeof import('./components/NavigationBar.vue')['default']
     NotFoundView: typeof import('./components/NotFound/NotFoundView.vue')['default']
