@@ -396,6 +396,12 @@
               <v-chip v-if="file.metadata?.filamentType" size="x-small" variant="tonal" color="orange">
                 {{ Array.isArray(file.metadata.filamentType) ? file.metadata.filamentType.join(', ') : file.metadata.filamentType }}
               </v-chip>
+              <v-chip v-if="file.metadata?.printerModel" size="x-small" variant="tonal" color="primary">
+                <v-icon start size="x-small">print</v-icon>{{ file.metadata.printerModel }}
+              </v-chip>
+              <v-chip v-if="file.metadata?.layerHeight" size="x-small" variant="tonal">
+                <v-icon start size="x-small">height</v-icon>{{ file.metadata.layerHeight }}mm
+              </v-chip>
               <v-chip v-if="file.metadata?.gcodePrintTimeSeconds" size="x-small" variant="tonal" color="info">
                 <v-icon start size="x-small">schedule</v-icon>{{ formatDuration(file.metadata.gcodePrintTimeSeconds) }}
               </v-chip>
