@@ -213,6 +213,14 @@
                 {{ currentProgress.toFixed(1) }}%
               </span>
 
+              <span
+                v-if="timeRemainingFormatted"
+                class="pg-tile__eta"
+                title="Estimated time remaining"
+              >
+                · {{ timeRemainingFormatted }}
+              </span>
+
               <v-spacer />
 
               <span v-if="toolTemp" class="pg-tile__temp" title="Tool temperature">
@@ -478,6 +486,29 @@ const currentProgress = computed(() => {
 
   const job = currentJob.value
   return job?.progress?.completion
+})
+
+const timeRemainingSeconds = computed<number | null>(() => {
+  if (!printerId.value) return null
+  // PrusaLink reports `printTimeLeft` (seconds) in the polled progress payload
+  // — see prusa-link-http-polling.adapter.ts. Zero / negative is treated as
+  // "unknown" since the firmware reports 0 both when finished and when the
+  // slicer didn't include an estimate.
+  const value = currentJob.value?.progress?.printTimeLeft
+  return typeof value === 'number' && value > 0 ? value : null
+})
+
+// Compact "h/m" form so it fits next to the percent without truncating the
+// chip or temperatures on smaller tiles. Seconds-only when the print is in
+// its last minute — anywhere else it's noise that flickers every poll.
+const timeRemainingFormatted = computed<string | null>(() => {
+  const total = timeRemainingSeconds.value
+  if (total === null) return null
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  if (hours > 0) return `${ hours }h ${ minutes }m`
+  if (minutes > 0) return `${ minutes }m`
+  return `${ Math.floor(total) }s`
 })
 
 const currentPrintingFilePath = computed(() => {
@@ -834,6 +865,12 @@ const selectPrinterPosition = async () => {
 .pg-tile__percent {
   font-weight: 700;
   color: rgb(var(--v-theme-on-surface));
+}
+
+.pg-tile__eta {
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  white-space: nowrap;
 }
 
 .pg-tile__temp {
