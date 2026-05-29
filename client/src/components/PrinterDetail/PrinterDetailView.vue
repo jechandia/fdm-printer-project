@@ -760,7 +760,6 @@
               </template>
             </v-list-item>
           </v-list>
-        </div>
 
         <!-- New-folder inline dialog. Local v-dialog instead of opening a
              global one — keeps the flow scoped to this tab and the
