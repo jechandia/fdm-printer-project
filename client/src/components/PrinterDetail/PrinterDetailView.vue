@@ -3814,19 +3814,20 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   padding-top: 12px;
 }
 
-/* Stack the hero thumbnail on top and the stats underneath so the
-   slice preview gets the full dialog width instead of competing with
-   the side panel — fills the available space and reads as the focal
-   point of the dialog. */
+/* Original side-by-side layout: a compact thumbnail square next to the
+   headline stats. The thumbnail itself is bigger than the v1 (240
+   instead of 160) so the slice preview is legible, but it doesn't
+   dominate the dialog. */
 .pdv-storage-details__top {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  align-items: flex-start;
 }
 
 .pdv-storage-details__thumb {
-  width: 100%;
-  height: 360px;
+  flex-shrink: 0;
+  width: 240px;
+  height: 240px;
   border-radius: 8px;
   overflow: hidden;
   background:
@@ -3842,10 +3843,12 @@ function filamentTotal(v: number | number[] | null | undefined): number {
   border: 1px solid rgba(var(--v-theme-primary), 0.16);
 }
 /* FileThumbnailCell wraps its v-img in a scoped 60×60 container which
-   would dominate the dialog at this size. Bust through with :deep so
-   the inner box stretches to fill the hero slot — the picked
-   thumbnail (~400px) finally renders close to native resolution
-   instead of being downscaled to a 60px square. */
+   would otherwise center a tiny image inside our 240px slot. Bust
+   through with :deep so the inner box stretches to fill the slot and
+   the picked thumbnail (~400px native) finally renders close to
+   resolution. object-fit: cover so the preview fills the box edge to
+   edge — slice previews are roughly square so we don't lose much by
+   cropping, and "fill the box" is what the operator asked for. */
 .pdv-storage-details__thumb :deep(.thumbnail-container) {
   width: 100%;
   height: 100%;
@@ -3853,14 +3856,15 @@ function filamentTotal(v: number | number[] | null | undefined): number {
 }
 .pdv-storage-details__thumb :deep(img),
 .pdv-storage-details__thumb :deep(.v-img),
+.pdv-storage-details__thumb :deep(.v-img__img),
 .pdv-storage-details__thumb :deep(.thumbnail-image) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .pdv-storage-details__primary {
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
