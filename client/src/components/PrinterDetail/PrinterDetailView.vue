@@ -854,20 +854,31 @@ interface SettingsFormShape {
   password: string
   enabled: boolean
 }
+// Initialise the ref with safe empty values; the watcher on `printer`
+// (further down) re-syncs it once the store hands us the real data.
+// Doing it eagerly here would TDZ — `printer` is declared after this
+// block in the setup script, and `buildFormFromPrinter()` reads it.
+const settingsForm = ref<SettingsFormShape>({
+  name: '',
+  printerURL: '',
+  // `password` and `username` are write-mostly server-side — the GET
+  // returns them masked / not at all. Start empty and let the operator
+  // re-enter when they actually want to change them.
+  username: '',
+  password: '',
+  enabled: true,
+})
+const settingsSaving = ref(false)
+
 function buildFormFromPrinter(): SettingsFormShape {
   return {
     name: printer.value?.name ?? '',
     printerURL: printer.value?.printerURL ?? '',
-    // `password` and `username` are write-mostly server-side — the GET
-    // returns them masked / not at all. Start empty and let the operator
-    // re-enter when they actually want to change them.
     username: '',
     password: '',
     enabled: printer.value?.enabled ?? true,
   }
 }
-const settingsForm = ref<SettingsFormShape>(buildFormFromPrinter())
-const settingsSaving = ref(false)
 
 const settingsDirty = computed(() => {
   if (!printer.value) return false
@@ -917,15 +928,24 @@ async function saveSettings() {
   }
 }
 
-// Whenever the underlying printer object changes (e.g. socket update),
-// re-sync the form so external edits propagate — but only when the form
-// isn't dirty (otherwise we'd nuke the user's typing).
+// Initial populate + external sync. The form ref starts with empty
+// strings (declared above `printer` for TDZ reasons), so the first run
+// of this watcher unconditionally seeds it with the real printer data.
+// After that we only re-sync when the form isn't dirty so a socket
+// update can't trample what the user is typing.
+let settingsFormSeeded = false
 watch(
   () => printer.value,
-  () => {
+  (next) => {
+    if (!next) return
+    if (!settingsFormSeeded) {
+      resetSettingsForm()
+      settingsFormSeeded = true
+      return
+    }
     if (!settingsDirty.value) resetSettingsForm()
   },
-  { deep: true },
+  { deep: true, immediate: true },
 )
 
 // ── Printer + live state ──
