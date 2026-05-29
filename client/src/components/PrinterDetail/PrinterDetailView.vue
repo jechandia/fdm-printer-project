@@ -2234,7 +2234,10 @@ const filteredStorageFolders = computed(() =>
   storageFolders.value.filter((f) => storageMatches(f.name)),
 )
 const filteredStorageFiles = computed(() =>
-  storageFiles.value.filter((f) => storageMatches(f.fileName)),
+  // Match against the friendly display name (what the row shows) so typing
+  // a slice prefix narrows the list as expected. `fileName` is the UUID
+  // stem for PrusaHero-uploaded files and would never match human input.
+  storageFiles.value.filter((f) => storageMatches(displayFileName(f))),
 )
 
 function storageFileSubtitle(f: FileMetadata): string {
@@ -2279,7 +2282,10 @@ async function addStorageToQueue(f: FileMetadata) {
   addingStorageId.value = f.fileStorageId
   try {
     await PrintQueueService.createJobFromFile(props.printerId, f.fileStorageId)
-    snackbar.openInfoMessage({ title: 'Added to queue', subtitle: f.fileName })
+    // displayFileName prefers metadata._originalFileName over the raw
+    // fileName (which is the on-disk UUID-stem for PrusaHero-uploaded
+    // files) so the snackbar matches the label on the list row.
+    snackbar.openInfoMessage({ title: 'Added to queue', subtitle: displayFileName(f) })
     notifyPrintJobsChanged({ printerId: props.printerId, reason: 'detailview:queueFromStorage' })
     await loadQueue()
   } catch (e: any) {
