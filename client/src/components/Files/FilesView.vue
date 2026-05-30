@@ -705,6 +705,7 @@ import { useSnackbar } from '@/shared/snackbar.composable'
 import { formatFileSize } from '@/utils/file-size.util'
 import { displayFileName } from '@/utils/file-name.util'
 import { confirm as confirmDialog } from '@/shared/confirm-dialog.composable'
+import { useBeforeUnloadGuard } from '@/shared/before-unload-guard.composable'
 import { formatRelativeTime, formatDuration } from '@/utils/date-time.utils'
 import FileDetailsDialog from './FileDetailsDialog.vue'
 import QueueFileDialog from './QueueFileDialog.vue'
@@ -725,6 +726,10 @@ const selectedFile = ref<FileMetadata | null>(null)
 const queueDialog = ref(false)
 const selectedFileForQueue = ref<FileMetadata | null>(null)
 const uploading = ref(false)
+// Warn before refresh/close while an upload is in flight — closing the tab
+// kills the request and the file can't be re-read after reload, so the prompt
+// is the only thing that prevents losing an accidental refresh/close.
+useBeforeUnloadGuard(uploading)
 const isDragging = ref(false)
 
 const folderDialog = reactive<{
