@@ -26,6 +26,7 @@ export const DITokens = {
   fileStorageFolderService: "fileStorageFolderService",
   fileAnalysisService: "fileAnalysisService",
   intakeService: "intakeService",
+  downloadTicketService: "downloadTicketService",
   printFileDownloaderService: "printFileDownloaderService",
   floorService: "floorService",
   yamlService: "yamlService",

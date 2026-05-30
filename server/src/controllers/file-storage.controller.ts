@@ -9,6 +9,7 @@ import { MulterService } from "@/services/core/multer.service";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
 import { LoggerService } from "@/handlers/logger";
 import { FileAnalysisService } from "@/services/file-analysis.service";
+import { DownloadTicketService } from "@/services/download-ticket.service";
 import { BadRequestException, ConflictException } from "@/exceptions/runtime.exceptions";
 import { copyFileSync, existsSync, unlinkSync } from "node:fs";
 import { extname } from "node:path";
@@ -25,6 +26,7 @@ export class FileStorageController {
     private readonly fileStorageFolderService: FileStorageFolderService,
     private readonly multerService: MulterService,
     private readonly fileAnalysisService: FileAnalysisService,
+    private readonly downloadTicketService: DownloadTicketService,
   ) {
     this.logger = loggerFactory(FileStorageController.name);
   }
@@ -355,6 +357,19 @@ export class FileStorageController {
   @route("/:fileStorageId/download")
   async downloadFile(req: Request, res: Response) {
     const { fileStorageId } = req.params as { fileStorageId: string };
+    await this.fileStorageService.streamDownload(res, fileStorageId);
+  }
+
+  /**
+   * Mint a short-lived, single-use download ticket so the browser can fetch
+   * the file natively (parallel, survives navigation) without the JWT in the
+   * URL. The client opens `…/download/redeem?ticket=…` as a normal link.
+   * POST /api/file-storage/:fileStorageId/download-ticket
+   */
+  @POST()
+  @route("/:fileStorageId/download-ticket")
+  async mintDownloadTicket(req: Request, res: Response) {
+    const { fileStorageId } = req.params as { fileStorageId: string };
 
     const file = await this.fileStorageService.getFileInfo(fileStorageId);
     if (!file) {
@@ -362,23 +377,8 @@ export class FileStorageController {
       return;
     }
 
-    const downloadName = file.fileName.replace(/"/g, "");
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
-    );
-    res.setHeader("Content-Length", this.fileStorageService.getFileSize(fileStorageId).toString());
-
-    const stream = this.fileStorageService.readFileStream(fileStorageId);
-    stream.on("error", () => {
-      if (!res.headersSent) {
-        res.status(500).send({ error: "Failed to read file" });
-      } else {
-        res.destroy();
-      }
-    });
-    stream.pipe(res);
+    const ticket = this.downloadTicketService.mint(fileStorageId, req.user?.id ?? null);
+    res.send({ ticket });
   }
 
   /**
