@@ -153,6 +153,14 @@ Hardware notes (verified against the physical farm — Prusa XL on Buddy fw 2.1.
 - **Realtime to client**: Socket.IO via `SocketIoGateway` (`src/state/socket-io.gateway.ts`), attached to the HTTP server in `ServerHost`.
 - **Auth**: Passport with JWT + anonymous strategies (`src/middleware/passport.ts`), role-based authorization (`ROLES` in `src/constants/authorization.constants.ts`), refresh tokens.
 
+#### Application subsystems
+
+Beyond the printer plumbing, the bulk of the feature surface lives in three subsystems (controllers under `/api/v2`, ORM services under `src/services/orm/`):
+
+- **File Storage** (`file-storage.controller.ts`, `FileStorageService`, `FileStorageFolderService`): a virtual folder tree over files uploaded to disk (under the media path), each with a metadata sidecar (original name, hash, sliced print time / filament / layer height) and extracted thumbnails. Supports upload (single + folder via `webkitdirectory`), move between folders, rename, per-file download (`GET /:id/download`, raw stream), and folder ZIP export. The Vue side is `client/src/components/Files/FilesView.vue`.
+- **Print Queue** (`print-queue.controller.ts`, `PrintQueueService`): per-printer FIFO job queues plus a global queue view. Jobs are created from a stored file (`createJobFromFile`) or a printer USB file; `compatible-printers` filters by printer type / PrusaLink firmware vs the file's format (e.g. `.bgcode` only on Buddy boards). Dispatch streams the file to the printer and the job rolls back to `QUEUED` on failure (see `resetStrandedDispatches` in `BootTask`). Client: `QueueFileDialog.vue`, `global-queue.query.ts`.
+- **Printer maintenance logs** (`printer-maintenance-log.controller.ts`, `PrinterMaintenanceLogService`, `PrinterMaintenanceLog` entity): a log per printer with an active (uncompleted) entry meaning "under maintenance". The active log is the durable source of truth and is mirrored onto `printer.disabledReason` (kept for backwards-compat / the grid badge); `BootTask` reconciles that column from active logs on startup.
+
 ## Frontend (`client/`)
 
 Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspace @prusahero/client-next <script>` from root):
@@ -161,7 +169,7 @@ Standard **Yarn 4 + Vite**. Commands (run inside `client/`, or via `yarn workspa
 - `yarn build` — `vue-tsc --noEmit && vite build` into `dist/`
 - `yarn lint` — ESLint with `--fix`
 
-The OpenAPI-generated client (`@hey-api/openapi-ts`) is still checked into `src/backend/generated/`, but the regeneration script and the upstream Playwright/Vitest harnesses have been removed. If you need to regenerate after backend contract changes, install ad-hoc and point it at a running backend:
+The OpenAPI-generated client (`@hey-api/openapi-ts`) is checked into `src/backend/generated/`, but the regeneration tooling is gone — there is no `openapi-ts.config.ts`, no `openapi-ts` package script, and `@hey-api/openapi-ts` isn't even a dependency anymore (the upstream Playwright/Vitest harnesses were removed too during the deployment-fork cleanup). To regenerate after backend contract changes, run it ad-hoc against a running backend:
 
 ```sh
 cd client
@@ -173,7 +181,7 @@ npx -p @hey-api/openapi-ts@0.97 openapi-ts \
 ### Frontend architecture
 
 - **Entry**: `src/main.ts` mounts the Vue app with Pinia (state), Vue Router, Vuetify, and TanStack Vue Query. (Sentry init was stripped; `@sentry/vue` stays as a dep so the `captureException` calls scattered through the code become silent no-ops without an SDK behind them.)
-- **Generated API client**: `src/backend/generated/` is **auto-generated** by `@hey-api/openapi-ts` from the backend's Swagger JSON (`openapi-ts.config.ts` reads `http://localhost:4000/api-docs/swagger.json`). Do not hand-edit files in `generated/`; regenerate with `yarn openapi-ts` against a running backend. The axios client is configured with `baseUrl: '/api'` (`client.gen.ts`).
+- **Generated API client**: `src/backend/generated/` is **auto-generated** by `@hey-api/openapi-ts` from the backend's Swagger JSON. Do not hand-edit files in `generated/`; regenerate with the ad-hoc `npx` command above against a running backend (there's no committed config or package script for it). The axios client is configured with `baseUrl: '/api'` (`client.gen.ts`).
 - **Service layer** (`src/backend/`): hand-written service classes (`*.service.ts`) wrap the generated SDK and expose typed methods to the rest of the app. `base.service.ts` / `server.api.ts` hold shared client setup.
 - **Data fetching**: TanStack Vue Query hooks in `src/queries/`.
 - **State**: Pinia stores in `src/store/` (auth, printers, floors, grid, settings, uploads, dialogs, etc.).
