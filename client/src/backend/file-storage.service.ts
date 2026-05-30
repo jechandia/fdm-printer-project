@@ -145,6 +145,13 @@ export class FileStorageService extends BaseService {
     downloadFileByBlob(response.data, `${name}.zip`, 'application/zip')
   }
 
+  static async downloadFile(fileStorageId: string, fileName: string): Promise<void> {
+    const response = await this.getDownload<ArrayBuffer>(
+      `/api/v2/file-storage/${fileStorageId}/download`
+    )
+    downloadFileByBlob(response.data, fileName, 'application/octet-stream')
+  }
+
   static async getThumbnailBase64(fileStorageId: string, index: number = 0): Promise<string> {
     const path = `/api/v2/file-storage/${fileStorageId}/thumbnail/${index}`
     const response = await this.get<{ thumbnailBase64: string }>(path)

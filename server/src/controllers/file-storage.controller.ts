@@ -347,6 +347,41 @@ export class FileStorageController {
   }
 
   /**
+   * Stream a stored file's raw bytes back as a download, named after the
+   * original upload (which already carries the right extension).
+   * GET /api/file-storage/:fileStorageId/download
+   */
+  @GET()
+  @route("/:fileStorageId/download")
+  async downloadFile(req: Request, res: Response) {
+    const { fileStorageId } = req.params as { fileStorageId: string };
+
+    const file = await this.fileStorageService.getFileInfo(fileStorageId);
+    if (!file) {
+      res.status(404).send({ error: "File not found" });
+      return;
+    }
+
+    const downloadName = file.fileName.replace(/"/g, "");
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+    );
+    res.setHeader("Content-Length", this.fileStorageService.getFileSize(fileStorageId).toString());
+
+    const stream = this.fileStorageService.readFileStream(fileStorageId);
+    stream.on("error", () => {
+      if (!res.headersSent) {
+        res.status(500).send({ error: "Failed to read file" });
+      } else {
+        res.destroy();
+      }
+    });
+    stream.pipe(res);
+  }
+
+  /**
    * Delete a stored file and its thumbnails
    * DELETE /api/file-storage/:fileStorageId
    */
