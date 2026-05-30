@@ -93,41 +93,83 @@
     </v-card>
 
     <!-- ─── Dispatch / Archive dialog ──────────────────────── -->
-    <v-dialog v-model="dialog.open" max-width="640">
-      <v-card v-if="dialog.item">
-        <v-card-title class="d-flex align-center">
-          <v-icon class="mr-2">{{ dialog.mode === 'dispatch' ? 'add_to_queue' : 'mdi:mdi-content-save' }}</v-icon>
-          {{ dialog.mode === 'dispatch' ? 'Dispatch to printer' : 'Save to folder' }}
+    <v-dialog v-model="dialog.open" max-width="660" scrollable>
+      <v-card v-if="dialog.item" class="intake-dialog">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="primary">
+            {{ dialog.mode === 'dispatch' ? 'add_to_queue' : 'mdi:mdi-content-save' }}
+          </v-icon>
+          <span class="text-h6">{{ dialog.mode === 'dispatch' ? 'Dispatch to printer' : 'Save to folder' }}</span>
           <v-spacer />
-          <v-btn icon="close" variant="text" @click="dialog.open = false" />
+          <v-btn icon="close" variant="text" size="small" @click="dialog.open = false" />
         </v-card-title>
 
-        <v-card-text>
-          <div class="mb-4">
-            <strong>File:</strong> {{ dialog.item.originalFileName }}
+        <v-divider />
+
+        <v-card-text class="pa-4">
+          <!-- File summary header -->
+          <div class="intake-dialog__file mb-5">
+            <IntakeThumbnailCell class="flex-shrink-0" :item="dialog.item" />
+            <div class="intake-dialog__file-info">
+              <div class="text-body-1 font-weight-medium text-truncate" :title="dialog.item.originalFileName">
+                {{ dialog.item.originalFileName }}
+              </div>
+              <div class="d-flex align-center flex-wrap ga-1 mt-1">
+                <v-chip v-if="dialog.item.fileFormat" size="x-small" variant="tonal">
+                  {{ dialog.item.fileFormat.toUpperCase() }}
+                </v-chip>
+                <v-chip v-if="dialog.item.metadata?.printerModel" size="x-small" variant="tonal" color="primary">
+                  <v-icon start size="13">print</v-icon>{{ dialog.item.metadata.printerModel }}
+                </v-chip>
+                <v-chip v-if="dialog.item.metadata?.gcodePrintTimeSeconds" size="x-small" variant="tonal" color="info">
+                  <v-icon start size="13">schedule</v-icon>{{ formatDuration(dialog.item.metadata.gcodePrintTimeSeconds) }}
+                </v-chip>
+                <v-chip v-if="dialog.item.metadata?.filamentUsedGrams != null" size="x-small" variant="tonal" color="green">
+                  <v-icon start size="13">fitness_center</v-icon>{{ filamentText(dialog.item) }}
+                </v-chip>
+                <v-chip size="x-small" variant="tonal">{{ formatFileSize(dialog.item.fileSize) }}</v-chip>
+              </div>
+            </div>
           </div>
 
-          <!-- Folder selector (optional for dispatch, the point for archive) -->
-          <div class="text-subtitle-2 mb-1">
-            Folder
-            <span v-if="dialog.mode === 'dispatch'" class="text-caption text-medium-emphasis">(optional)</span>
+          <!-- Folder: collapsed summary by default so the printer list stays
+               in view. Expand to browse / create. -->
+          <div class="text-subtitle-2 mb-2">
+            Destination folder
+            <span v-if="dialog.mode === 'dispatch'" class="text-caption text-medium-emphasis font-weight-regular">· optional</span>
           </div>
-          <v-select
-            v-model="dialog.folderPath"
-            :items="folderOptions"
-            density="compact"
-            variant="outlined"
-            hide-details
-            class="mb-4"
-            prepend-inner-icon="folder"
-          />
+
+          <button type="button" class="intake-folder-summary mb-2" @click="dialog.folderExpanded = !dialog.folderExpanded">
+            <v-icon size="20" class="mr-2" :color="dialog.folderPath ? 'primary' : 'medium-emphasis'">
+              {{ dialog.folderPath ? 'folder' : 'home' }}
+            </v-icon>
+            <span class="text-truncate">{{ dialog.folderPath ? folderLabel(dialog.folderPath) : 'Root' }}</span>
+            <span v-if="dialog.folderPath" class="intake-folder-summary__path text-caption text-medium-emphasis text-truncate ml-2">
+              {{ dialog.folderPath }}
+            </span>
+            <v-spacer />
+            <span class="text-caption text-primary mr-1">{{ dialog.folderExpanded ? 'Done' : 'Change' }}</span>
+            <v-icon size="18" color="primary">{{ dialog.folderExpanded ? 'expand_less' : 'expand_more' }}</v-icon>
+          </button>
+
+          <v-expand-transition>
+            <div v-if="dialog.folderExpanded" class="mb-2">
+              <FolderBrowser
+                v-model="folderPickerValue"
+                :folders="allFolderPaths"
+                @create="onCreateFolder"
+              />
+            </div>
+          </v-expand-transition>
+
+          <div class="mb-4" />
 
           <!-- Printer picker (dispatch only) -->
           <template v-if="dialog.mode === 'dispatch'">
-            <div class="text-subtitle-2 mb-1">Printer</div>
+            <div class="text-subtitle-2 mb-2">Printer</div>
 
-            <div v-if="dialog.checkingCompat" class="d-flex justify-center py-4">
-              <v-progress-circular indeterminate size="24" />
+            <div v-if="dialog.checkingCompat" class="d-flex justify-center py-6">
+              <v-progress-circular indeterminate size="28" />
             </div>
 
             <template v-else>
@@ -140,56 +182,50 @@
                 No compatible printer for this file format.
               </v-alert>
 
-              <v-list v-else class="pa-0" density="compact">
-                <v-list-item
+              <div v-else class="intake-printers">
+                <button
                   v-for="printer in dialog.compatiblePrinters"
                   :key="printer.id"
-                  :active="dialog.printerId === printer.id"
-                  class="intake-printer-row"
+                  type="button"
+                  class="intake-printer"
+                  :class="{ 'intake-printer--selected': dialog.printerId === printer.id }"
                   @click="dialog.printerId = printer.id"
                 >
-                  <template #prepend>
-                    <v-radio
-                      :model-value="dialog.printerId === printer.id"
-                      :value="true"
-                      hide-details
-                      density="compact"
-                      @click.stop="dialog.printerId = printer.id"
-                    />
-                  </template>
-                  <v-list-item-title>
-                    {{ printer.name }}
-                    <v-chip
-                      v-if="suggestedPrinterId === printer.id"
-                      size="x-small"
-                      color="success"
-                      variant="flat"
-                      class="ml-2"
-                    >
-                      Suggested
-                    </v-chip>
-                  </v-list-item-title>
-                  <template #append>
-                    <div class="d-flex align-center ga-2">
-                      <v-chip
-                        v-if="queueCountFor(printer.id) > 0"
-                        size="x-small"
-                        variant="tonal"
-                        color="info"
-                        prepend-icon="queue"
-                      >
-                        {{ queueCountFor(printer.id) }} queued
-                      </v-chip>
-                      <v-chip size="x-small" variant="tonal" :color="liveStatus(printer.id).color">
-                        {{ liveStatus(printer.id).label }}
-                        <template v-if="liveStatus(printer.id).timeLeftSeconds">
-                          · {{ formatDuration(liveStatus(printer.id).timeLeftSeconds) }} left
-                        </template>
-                      </v-chip>
-                    </div>
-                  </template>
-                </v-list-item>
-              </v-list>
+                  <v-icon size="20" class="flex-shrink-0" :color="dialog.printerId === printer.id ? 'primary' : 'medium-emphasis'">
+                    {{ dialog.printerId === printer.id ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                  </v-icon>
+
+                  <span class="intake-printer__dot" :style="{ backgroundColor: `rgb(var(--v-theme-${liveStatus(printer.id).color}))` }" />
+
+                  <span class="intake-printer__name text-truncate">{{ printer.name }}</span>
+
+                  <v-chip
+                    v-if="suggestedPrinterId === printer.id"
+                    size="x-small"
+                    color="success"
+                    variant="flat"
+                    class="flex-shrink-0"
+                  >
+                    Suggested
+                  </v-chip>
+
+                  <v-spacer />
+
+                  <v-chip
+                    v-if="queueCountFor(printer.id) > 0"
+                    size="x-small"
+                    variant="tonal"
+                    color="info"
+                    prepend-icon="queue"
+                    class="flex-shrink-0"
+                  >
+                    {{ queueCountFor(printer.id) }}
+                  </v-chip>
+                  <span class="intake-printer__status text-caption flex-shrink-0" :class="`text-${liveStatus(printer.id).color}`">
+                    {{ liveStatus(printer.id).label }}<template v-if="liveStatus(printer.id).timeLeftSeconds"> · {{ formatDuration(liveStatus(printer.id).timeLeftSeconds) }} left</template>
+                  </span>
+                </button>
+              </div>
 
               <details v-if="dialog.incompatiblePrinters.length > 0" class="mt-3 intake-incompat">
                 <summary class="text-caption text-medium-emphasis">
@@ -209,13 +245,16 @@
           </template>
         </v-card-text>
 
-        <v-card-actions>
+        <v-divider />
+
+        <v-card-actions class="pa-3">
           <v-spacer />
           <v-btn variant="text" @click="dialog.open = false">Cancel</v-btn>
           <v-btn
             v-if="dialog.mode === 'archive'"
             color="primary"
             variant="elevated"
+            prepend-icon="mdi:mdi-content-save"
             :loading="dialog.busy"
             @click="submitArchive"
           >
@@ -225,11 +264,12 @@
             v-else
             color="primary"
             variant="elevated"
+            prepend-icon="add_to_queue"
             :disabled="!dialog.printerId"
             :loading="dialog.busy"
             @click="submitDispatch"
           >
-            Queue to printer
+            Queue to {{ selectedPrinterName || 'printer' }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -250,6 +290,7 @@ import { formatFileSize } from '@/utils/file-size.util'
 import { useOnIntakeChanged } from '@/shared/intake-invalidator.composable'
 import { refreshIntakePendingCount } from '@/shared/intake-count.composable'
 import IntakeThumbnailCell from './IntakeThumbnailCell.vue'
+import FolderBrowser from '@/components/Files/FolderBrowser.vue'
 
 const snackbar = useSnackbar()
 const printerStateStore = usePrinterStateStore()
@@ -269,6 +310,7 @@ const dialog = reactive<{
   compatiblePrinters: Array<Record<string, any>>
   incompatiblePrinters: Array<Record<string, any> & { incompatibilityReason?: string }>
   queueCounts: Record<number, number>
+  folderExpanded: boolean
 }>({
   open: false,
   mode: 'dispatch',
@@ -280,12 +322,24 @@ const dialog = reactive<{
   compatiblePrinters: [],
   incompatiblePrinters: [],
   queueCounts: {},
+  folderExpanded: false,
 })
 
-const folderOptions = computed(() => [
-  { title: 'Root', value: null },
-  ...folderTree.value.map((f) => ({ title: f.path, value: f.path })),
-])
+// Flat list of folder paths for the shared FolderPicker tree component.
+const allFolderPaths = computed(() => folderTree.value.map((f) => f.path))
+
+// FolderPicker models the selection as a string where '' means Root; our API
+// and dialog state use null for Root. Bridge the two.
+const folderPickerValue = computed<string>({
+  get: () => dialog.folderPath ?? '',
+  set: (v) => {
+    dialog.folderPath = v === '' ? null : v
+  },
+})
+
+const selectedPrinterName = computed(
+  () => dialog.compatiblePrinters.find((p) => p.id === dialog.printerId)?.name ?? '',
+)
 
 function folderLabel(path: string): string {
   return path.split('/').filter(Boolean).pop() || path
@@ -376,7 +430,30 @@ function resetDialog(item: IntakeItem, mode: 'dispatch' | 'archive') {
   dialog.compatiblePrinters = []
   dialog.incompatiblePrinters = []
   dialog.queueCounts = {}
+  // Save-only is all about the folder, so start expanded; dispatch leads with
+  // the printer, so keep the folder collapsed to a one-line summary.
+  dialog.folderExpanded = mode === 'archive'
   dialog.open = true
+}
+
+// Driven by the FolderBrowser's inline "New folder here" row. Creates inside
+// the folder being browsed and reports the created path back so the browser
+// can navigate into it (or keep its input open on failure).
+async function onCreateFolder(payload: {
+  parentPath: string
+  name: string
+  done: (createdPath: string | null) => void
+}) {
+  // Folder paths are absolute with a leading slash (e.g. /dddd/App).
+  const path = `${payload.parentPath}/${payload.name}`
+  try {
+    await FileStorageService.createFolder(path)
+    await loadFolderTree()
+    payload.done(path)
+  } catch (err: any) {
+    snackbar.error(err?.response?.data?.error || err?.message || 'Failed to create folder')
+    payload.done(null)
+  }
 }
 
 function openArchive(item: IntakeItem) {
@@ -512,11 +589,92 @@ onMounted(() => {
   flex: 0 0 auto;
 }
 
-.intake-printer-row {
-  border-radius: 6px;
+/* ─── Dispatch / Save dialog ─────────────────────────────── */
+.intake-dialog__file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.intake-dialog__file-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.intake-printers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.intake-printer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.intake-printer:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.intake-printer--selected {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.intake-printer__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.intake-printer__name {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.intake-printer__status {
+  white-space: nowrap;
 }
 
 .intake-incompat summary {
   cursor: pointer;
+}
+
+.intake-folder-summary {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.intake-folder-summary:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.intake-folder-summary__path {
+  min-width: 0;
+  max-width: 220px;
 }
 </style>
