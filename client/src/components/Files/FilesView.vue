@@ -1741,13 +1741,14 @@ const openQueueDialog = (file: FileMetadata) => {
    top/bottom edge. Shrink the icon below the chip height to give it vertical
    breathing room. */
 .fl-row__meta :deep(.v-chip) {
-  min-height: 22px;
+  min-height: 26px;
+  font-size: 12px;
 }
 
 .fl-row__meta :deep(.v-chip .v-icon) {
-  font-size: 13px !important;
-  width: 13px;
-  height: 13px;
+  font-size: 15px !important;
+  width: 15px;
+  height: 15px;
 }
 
 .fl-row__actions {
