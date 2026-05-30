@@ -114,13 +114,9 @@
       <v-btn
         size="small"
         variant="text"
-        :class="{ 'files-breadcrumb__drop': isFileDragging && dragOverFolderPath === '__root__' }"
         :disabled="currentFolderPath === null"
         prepend-icon="home"
         @click="navigateToFolder(null)"
-        @dragover.prevent="onFolderDragOver('__root__', $event)"
-        @dragleave="onFolderDragLeave('__root__')"
-        @drop.prevent="onFolderDrop(null)"
       >
         Root
       </v-btn>
@@ -278,13 +274,9 @@
             :key="folder.path"
             class="files-fs-row"
             :class="{
-              'files-fs-row--drop': isFileDragging && dragOverFolderPath === folder.path,
               'files-fs-row--selected': isFolderSelected(folder.path),
             }"
             @click="navigateToFolder(folder.path)"
-            @dragover.prevent="onFolderDragOver(folder.path, $event)"
-            @dragleave="onFolderDragLeave(folder.path)"
-            @drop.prevent="onFolderDrop(folder.path)"
           >
             <v-checkbox-btn
               :model-value="isFolderSelected(folder.path)"
@@ -376,14 +368,8 @@
               @click.stop
             />
 
-            <div
-              class="fl-row__main"
-              draggable="true"
-              @dragstart="onFileDragStart(file, $event)"
-              @dragend="onFileDragEnd()"
-            >
+            <div class="fl-row__main">
               <div class="fl-row__name">
-                <v-icon size="x-small" class="fl-row__drag flex-shrink-0">drag_indicator</v-icon>
                 <span class="text-truncate" :title="displayFileName(file)">{{ displayFileName(file) }}</span>
               </div>
               <div class="fl-row__sub">
@@ -718,9 +704,6 @@ const renameDialog = reactive<{
 const selected = ref<string[]>([])
 const bulkDeleting = ref(false)
 
-const draggedFileId = ref<string | null>(null)
-const dragOverFolderPath = ref<string | null>(null)
-const isFileDragging = computed(() => draggedFileId.value !== null)
 const bulkMoveDialog = reactive<{
   open: boolean
   targetPath: string
@@ -1138,48 +1121,6 @@ function moveFolderSingle(folder: FolderInfo) {
   bulkMoveDialog.open = true
 }
 
-// ── Drag & drop files onto folder cards ───────────────────────
-function onFileDragStart(file: FileMetadata, ev: DragEvent) {
-  draggedFileId.value = file.fileStorageId
-  if (ev.dataTransfer) {
-    ev.dataTransfer.effectAllowed = 'move'
-    // Firefox needs *some* data on the transfer to fire dragstart.
-    ev.dataTransfer.setData('text/plain', file.fileStorageId)
-  }
-}
-
-function onFileDragEnd() {
-  draggedFileId.value = null
-  dragOverFolderPath.value = null
-}
-
-function onFolderDragOver(path: string, ev: DragEvent) {
-  if (!draggedFileId.value) return
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
-  dragOverFolderPath.value = path
-}
-
-function onFolderDragLeave(path: string) {
-  if (dragOverFolderPath.value === path) dragOverFolderPath.value = null
-}
-
-async function onFolderDrop(targetPath: string | null) {
-  const fileId = draggedFileId.value
-  draggedFileId.value = null
-  dragOverFolderPath.value = null
-  if (!fileId) return
-
-  try {
-    await FileStorageService.moveFileToFolder(fileId, targetPath)
-    snackbar.info(`Moved to ${targetPath || 'Root'}`)
-    await loadFiles()
-  } catch (err: any) {
-    snackbar.error(
-      err?.response?.data?.error || err?.message || 'Move failed'
-    )
-  }
-}
-
 async function submitBulkMove() {
   if (selected.value.length === 0 && selectedFolders.value.length === 0) return
   const target = bulkMoveDialog.targetPath.trim() || null
@@ -1590,12 +1531,6 @@ const openQueueDialog = (file: FileMetadata) => {
   cursor: pointer;
 }
 
-.files-fs-row--drop {
-  background: rgba(var(--v-theme-primary), 0.16) !important;
-  outline: 2px dashed rgb(var(--v-theme-primary));
-  outline-offset: -2px;
-}
-
 .files-fs-row__icon {
   color: rgb(var(--v-theme-primary));
   flex-shrink: 0;
@@ -1618,33 +1553,6 @@ const openQueueDialog = (file: FileMetadata) => {
   flex-shrink: 0;
 }
 
-.files-breadcrumb__drop {
-  background: rgba(var(--v-theme-primary), 0.16) !important;
-  outline: 2px dashed rgb(var(--v-theme-primary));
-  outline-offset: -2px;
-}
-
-/* Drag handle in file rows */
-.files-row-drag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: grab;
-}
-
-.files-row-drag:active {
-  cursor: grabbing;
-}
-
-.files-row-drag__handle {
-  color: rgba(var(--v-theme-on-surface), 0.25);
-  flex-shrink: 0;
-  transition: color 0.15s ease;
-}
-
-.files-row-drag:hover .files-row-drag__handle {
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
 
 .files-folder__menu {
   flex-shrink: 0;
@@ -1801,7 +1709,6 @@ const openQueueDialog = (file: FileMetadata) => {
 .fl-row__main {
   flex: 1 1 auto;
   min-width: 0;
-  cursor: grab;
 }
 
 .fl-row__name {
@@ -1811,10 +1718,6 @@ const openQueueDialog = (file: FileMetadata) => {
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
-}
-
-.fl-row__drag {
-  color: rgba(var(--v-theme-on-surface), 0.4);
 }
 
 .fl-row__sub {
