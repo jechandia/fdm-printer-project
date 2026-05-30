@@ -248,6 +248,26 @@ export class PrintJobService implements IPrintJobService {
         order: { createdAt: "DESC" },
       });
 
+      // A job PrusaHero just dispatched is STARTING (upload in flight) when the
+      // printer already reports PRINTING — the firmware starts printing as
+      // bytes arrive, before our upload call returns. That job carries the
+      // fileStorageId/metadata, so adopt it instead of creating an orphan.
+      // Match by basename (sameFile) because PrusaLink reports a DOS 8.3 /
+      // display name that won't equal the stored fileName exactly. Scoped to
+      // this printer's own in-flight dispatches.
+      if (!job) {
+        const starting = await this.printJobRepository.find({
+          where: { printerId, status: "STARTING" },
+          order: { startedAt: "DESC", createdAt: "DESC" },
+        });
+        job = starting.find((j) => this.sameFile(j.fileName, fileName)) ?? null;
+        if (job) {
+          this.logger.log(
+            `Adopting in-flight dispatched job ${job.id} for print "${fileName}" on printer ${printerId}`,
+          );
+        }
+      }
+
       // If no pending/analyzed job, look for any recent job with this filename
       if (!job) {
         job = await this.printJobRepository.findOne({
