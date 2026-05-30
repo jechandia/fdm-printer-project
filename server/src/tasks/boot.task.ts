@@ -22,6 +22,7 @@ import { BrandingService } from "@/services/core/branding.service";
 import { PrintQueueService } from "@/services/print-queue.service";
 import { PrinterEventsCache } from "@/state/printer-events.cache";
 import { PrinterMaintenanceLogService } from "@/services/orm/printer-maintenance-log.service";
+import { IntakeService } from "@/services/orm/intake.service";
 
 export class BootTask implements TaskService {
   logger: LoggerService;
@@ -45,6 +46,7 @@ export class BootTask implements TaskService {
     private readonly printQueueService: PrintQueueService,
     private readonly printerEventsCache: PrinterEventsCache,
     private readonly printerMaintenanceLogService: PrinterMaintenanceLogService,
+    private readonly intakeService: IntakeService,
   ) {
     this.logger = loggerFactory(BootTask.name);
   }
@@ -62,6 +64,7 @@ export class BootTask implements TaskService {
 
     this.logger.log("Ensuring file storage directories exist");
     await this.fileStorageService.ensureStorageDirectories();
+    await this.intakeService.ensureStagingDir();
 
     this.logger.log("Loading and synchronizing Server Settings");
     await this.settingsStore.loadSettings();

@@ -47,6 +47,8 @@ declare module 'vue' {
     GridSizeControl: typeof import('./components/PrinterGrid/GridSizeControl.vue')['default']
     HelpBanner: typeof import('./components/Generic/HelpBanner.vue')['default']
     HomeToolbar: typeof import('./components/PrinterGrid/HomeToolbar.vue')['default']
+    IntakeThumbnailCell: typeof import('./components/Intake/IntakeThumbnailCell.vue')['default']
+    IntakeView: typeof import('./components/Intake/IntakeView.vue')['default']
     JsonViewerDialog: typeof import('./components/Generic/Dialogs/JsonViewerDialog.vue')['default']
     LoginForm: typeof import('./components/Login/LoginForm.vue')['default']
     LoginView: typeof import('./components/Login/LoginView.vue')['default']

@@ -60,6 +60,7 @@ import { FileAnalysisService } from "@/services/file-analysis.service";
 import { PrintJobAnalysisTask } from "@/tasks/print-job-analysis.task";
 import { PrintFileDownloaderService } from "@/services/print-file-downloader.service";
 import { PrinterFirmwareCache } from "@/state/printer-firmware.cache";
+import { IntakeService } from "@/services/orm/intake.service";
 
 export function configureContainer() {
   const container = createContainer({
@@ -150,6 +151,7 @@ export function configureContainer() {
     [di.fileStorageFolderService]: asClass(FileStorageFolderService).singleton(),
     [di.fileAnalysisService]: asClass(FileAnalysisService).singleton(),
     [di.printFileDownloaderService]: asClass(PrintFileDownloaderService).singleton(),
+    [di.intakeService]: asClass(IntakeService).singleton(),
 
     [di.bootTask]: asClass(BootTask),
     [di.socketIoTask]: asClass(SocketIoTask).singleton(), // This task is a quick task (~100ms per printer)
