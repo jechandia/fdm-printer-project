@@ -322,7 +322,12 @@ export class IntakeService {
 
     const fileStorageId = await this.promoteToFileStorage(item, args.folderPath);
 
-    const metadata = (item.metadata as any) ?? {};
+    // Use the metadata that File Storage just persisted, not item.metadata:
+    // promotion rewrites `_thumbnails` from inline base64 (analysis output) to
+    // the on-disk shape (index + path) that the queue's "Next Up" thumbnail
+    // endpoint reads back. The intake copy still has the base64 form, which
+    // the thumbnail-by-index endpoint can't serve — so the card showed blank.
+    const metadata = (await this.fileStorageService.loadMetadata(fileStorageId)) ?? (item.metadata as any) ?? {};
     const job = await this.printJobService.createPendingJob(printerId, item.originalFileName, metadata, printer.name);
     job.fileStorageId = fileStorageId;
     job.fileHash = item.fileHash ?? metadata._fileHash ?? null;
