@@ -528,6 +528,13 @@
       :file="selectedFileForQueue"
     />
 
+    <UploadConflictDialog
+      v-model="conflictDialog.open"
+      :conflicts="conflictDialog.conflicts"
+      @resolve="onConflictResolve"
+      @cancel="onConflictCancel"
+    />
+
     <!-- ─── Create / rename folder dialog ───────────────────── -->
     <v-dialog
       v-model="folderDialog.open"
@@ -714,6 +721,7 @@ import { useBeforeUnloadGuard } from '@/shared/before-unload-guard.composable'
 import { formatRelativeTime, formatDuration } from '@/utils/date-time.utils'
 import FileDetailsDialog from './FileDetailsDialog.vue'
 import QueueFileDialog from './QueueFileDialog.vue'
+import UploadConflictDialog, { type UploadConflict } from './UploadConflictDialog.vue'
 import FolderPicker from './FolderPicker.vue'
 
 const snackbar = useSnackbar()
@@ -1557,25 +1565,49 @@ const uploadItems = async (items: UploadItem[]) => {
   await loadFiles()
   await loadFolderTree()
 
-  // Offer to overwrite the files that were skipped because they already exist.
+  // Let the user decide per file which existing ones to replace vs keep.
   if (conflicts.length > 0) {
-    const overwrite = await confirmDialog({
-      title: `${conflicts.length} file${conflicts.length === 1 ? '' : 's'} already existed`,
-      message:
-        conflicts.length === 1
-          ? 'It was kept as-is to avoid overwriting. Replace it with the version you just selected?'
-          : 'They were kept as-is to avoid overwriting. Replace them with the versions you just selected?',
-      confirmText: `Overwrite ${conflicts.length}`,
-      severity: 'warning',
-      icon: 'sync',
-    })
-    if (overwrite) {
-      await overwriteConflicts(conflicts)
+    const toReplace = await resolveUploadConflicts(
+      conflicts.map((c) => ({
+        file: c.file,
+        folderPath: c.folderPath,
+        displayPath: c.folderPath ? `${c.folderPath}/${c.file.name}` : c.file.name,
+      })),
+    )
+    if (toReplace.length > 0) {
+      await overwriteConflicts(toReplace.map((c) => ({ file: c.file, folderPath: c.folderPath })))
       return
     }
   }
 
   maybeClearUpload()
+}
+
+// Per-file conflict resolution dialog. resolveUploadConflicts opens it and
+// resolves with the subset the user chose to replace (empty if they skip all
+// or cancel), so the upload flow can await a single decision step.
+const conflictDialog = reactive<{
+  open: boolean
+  conflicts: UploadConflict[]
+  resolve: ((replace: UploadConflict[]) => void) | null
+}>({ open: false, conflicts: [], resolve: null })
+
+function resolveUploadConflicts(conflicts: UploadConflict[]): Promise<UploadConflict[]> {
+  return new Promise((resolve) => {
+    conflictDialog.conflicts = conflicts
+    conflictDialog.resolve = resolve
+    conflictDialog.open = true
+  })
+}
+
+function onConflictResolve(replace: UploadConflict[]) {
+  conflictDialog.resolve?.(replace)
+  conflictDialog.resolve = null
+}
+
+function onConflictCancel() {
+  conflictDialog.resolve?.([])
+  conflictDialog.resolve = null
 }
 
 // Replace each conflicting file: delete the existing one, then re-upload the
