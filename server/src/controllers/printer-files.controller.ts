@@ -202,6 +202,18 @@ export class PrinterFilesController {
       return;
     }
 
+    // Guard against a stale thumbnail: the per-printer cache holds whatever was
+    // last set, and if a new print started without the cache catching up (event
+    // missed, or the active file isn't linked to a stored thumbnail) it would
+    // otherwise show the PREVIOUS print's image — "another product's thumbnail".
+    // If the printer is actively printing a different job than the cached one,
+    // don't serve the mismatched image.
+    const activeJob = await this.printJobService.getActivePrintJob(currentPrinterId);
+    if (activeJob && activeJob.id !== printerThumbnail.jobId) {
+      res.send(null);
+      return;
+    }
+
     // Surface a few slice-time fields so the preview dialog can show
     // "120 g · PLA · 24h 30m" without an extra fetch. Kept narrow on
     // purpose: only the fields the dialog displays, since this endpoint
