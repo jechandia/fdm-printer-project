@@ -466,6 +466,7 @@ async function openDispatch(item: IntakeItem) {
   try {
     const res = await PrintQueueService.getCompatiblePrinters({
       fileFormat: (item.fileFormat as any) || undefined,
+      printerModel: (item.metadata?.printerModel as string | undefined) || undefined,
     })
     dialog.compatiblePrinters = res.compatible.filter((p) => p.enabled !== false)
     dialog.incompatiblePrinters = res.incompatible
