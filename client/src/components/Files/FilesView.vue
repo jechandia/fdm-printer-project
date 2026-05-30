@@ -1027,6 +1027,9 @@ const folderBreadcrumb = computed(() => {
 })
 
 async function navigateToFolder(path: string | null) {
+  // Selection is scoped to the folder you're looking at. Clear it on navigation
+  // so a stale, off-screen selection can't be bulk-deleted/moved by accident.
+  clearSelection()
   currentFolderPath.value = path
   await loadFiles()
 }
