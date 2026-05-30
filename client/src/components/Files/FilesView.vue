@@ -324,7 +324,12 @@
             <span class="files-fs-row__name text-truncate" :title="folder.name">
               {{ folder.name }}
             </span>
-            <span class="files-fs-row__type text-caption text-medium-emphasis">Folder</span>
+            <span class="files-fs-row__type text-caption text-medium-emphasis">
+              <template v-if="folder.fileCount">
+                {{ folder.fileCount }} {{ folder.fileCount === 1 ? 'file' : 'files' }} · {{ formatFileSize(folder.fileSize || 0) }}
+              </template>
+              <template v-else>Empty</template>
+            </span>
             <v-menu @click.stop>
               <template #activator="{ props }">
                 <button
@@ -1704,7 +1709,9 @@ const openQueueDialog = (file: FileMetadata) => {
 
 .files-fs-row__type {
   flex-shrink: 0;
-  width: 110px;
+  width: 180px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .files-fs-row__menu-spacer {
