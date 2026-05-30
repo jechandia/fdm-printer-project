@@ -38,6 +38,7 @@ export class ServerApi {
   static readonly fileDownloadTicketRoute = (id: string) =>
     `${ServerApi.fileStorageRoute}/${id}/download-ticket`
   static readonly downloadRedeemRoute = `${ServerApi.base}/download/redeem`
+  static readonly folderExportTicketRoute = `${ServerApi.fileStorageRoute}/folders/export-ticket`
 
   static readonly intakeRoute = `${ServerApi.base}/intake`
   static readonly intakeArchiveRoute = (id: number) => `${ServerApi.intakeRoute}/${id}/archive`

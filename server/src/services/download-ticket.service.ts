@@ -2,8 +2,11 @@ import { randomBytes } from "node:crypto";
 import type { ILoggerFactory } from "@/handlers/logger-factory";
 import { LoggerService } from "@/handlers/logger";
 
+/** What a ticket grants access to — a single stored file, or a folder ZIP. */
+export type DownloadTarget = { kind: "file"; fileStorageId: string } | { kind: "folderZip"; folderPath: string };
+
 interface DownloadTicket {
-  fileStorageId: string;
+  target: DownloadTarget;
   userId: number | null;
   expiresAt: number;
 }
@@ -27,12 +30,12 @@ export class DownloadTicketService {
     this.logger = loggerFactory(DownloadTicketService.name);
   }
 
-  /** Create a one-time ticket for a file. Returns the opaque ticket string. */
-  mint(fileStorageId: string, userId: number | null): string {
+  /** Create a one-time ticket for a download target. Returns the ticket string. */
+  mint(target: DownloadTarget, userId: number | null): string {
     this.sweep();
     const ticket = randomBytes(24).toString("hex");
     this.tickets.set(ticket, {
-      fileStorageId,
+      target,
       userId,
       expiresAt: Date.now() + DownloadTicketService.TTL_MS,
     });
@@ -40,17 +43,17 @@ export class DownloadTicketService {
   }
 
   /**
-   * Consume a ticket. Returns the fileStorageId if valid (and removes it so it
-   * can't be reused), or null if unknown/expired.
+   * Consume a ticket. Returns its target if valid (and removes it so it can't
+   * be reused), or null if unknown/expired.
    */
-  redeem(ticket: string): string | null {
+  redeem(ticket: string): DownloadTarget | null {
     const entry = this.tickets.get(ticket);
     if (!entry) return null;
     this.tickets.delete(ticket);
     if (entry.expiresAt < Date.now()) {
       return null;
     }
-    return entry.fileStorageId;
+    return entry.target;
   }
 
   private sweep(): void {
